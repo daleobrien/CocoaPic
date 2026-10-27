@@ -1,0 +1,1 @@
+// Automatically generated on Sunday, 2 November 2003#include "../Headers/PIC12F675_cpuMemory.h"void PIC12F675_SLEEP(void) { }

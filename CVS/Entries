@@ -1,0 +1,112 @@
+/.DS_Store/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/12C671.icns/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/ADDWF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/ADDWF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/ANDLW.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/ANDWF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/ANDWF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/ASm.s/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/BCF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/BCF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/BSF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/BSF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/BTFSC.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/BTFSS.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/CALL.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/CLRF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/CLRF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/CLRW.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/CLRW.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/CLRWDT.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/CLRWDT.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/COMF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/COMF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/DECF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/DECF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/DECFSZ.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/GOTO.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/INCF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/INCF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/INCFSZ.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/IORLW.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/IORLW.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/IORWF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/IORWF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/MOVF.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/MOVF.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/MOVLW.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/MOVLW.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/MOVWF.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/MOVWF.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/NOP.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/NOP.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/OPTION.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/OPTION.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/RETLW.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/RLF.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/RLF.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/RRF.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/RRF.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/SLEEP.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/SLEEP.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/SUBWF.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/SUBWF.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/SWAPF.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/SWAPF.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/TRIS.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/TRIS.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/XORLW.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/XORLW.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/XORWF.c/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/XORWF.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/cpuCore.h/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/cpuMemory.cc/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/main.cpp/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/main_1.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/main_2.c/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/main_2.cpp/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/main_big.cpp/1.1.1.1/Sun Apr 13 10:56:06 2003//
+/ram Table.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/ram Table.m/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/regCode.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/rom Table.h/1.1.1.1/Sun Apr 13 10:56:07 2003//
+/rom Table.m/1.1.1.1/Sun Apr 13 10:56:07 2003//
+D/CocoaPic////
+D/CocoaPic.pbproj////
+D/English.lproj////
+D/Photo's of PIC////
+D/build////
+D/new////
+D/yoyodyne////
+/ramCode.h/1.1.1.1/Sat Jun 28 00:02:49 2003//
+/RETLW.c/1.2/Sat Jun 28 10:38:05 2003//
+/INCFSZ.c/1.2/Sat Jun 28 10:38:04 2003//
+/GOTO.c/1.2/Sat Jun 28 10:38:04 2003//
+/BTFSC.c/1.2/Sat Jun 28 10:38:04 2003//
+/BTFSS.c/1.2/Sat Jun 28 10:38:04 2003//
+/DECFSZ.c/1.2/Sat Jun 28 10:38:04 2003//
+/CALL.c/1.2/Sat Jun 28 10:38:04 2003//
+/cpuCore.c/1.2/Tue Jul  1 10:09:38 2003//
+/OSTableView.h/1.1/Tue Jul  8 10:10:30 2003//
+/OSTableView.m/1.1/Tue Jul  8 10:10:29 2003//
+/cpuMemory.c/1.3/Fri Jul 11 11:57:09 2003//
+/cpuMemory.h/1.3/Fri Jul 11 11:58:40 2003//
+/romCode.h/1.6/Fri Jul 11 12:00:16 2003//
+/ANDLW.c/1.1.1.1/Thu Sep 25 11:21:25 2003//
+/main_3.c/-1.3/Fri Jul 11 12:09:14 2003//
+/main.m/1.3/Sun Nov  9 06:27:36 2003//
+/cpuExecution.c/1.1/Mon Nov 10 02:01:20 2003//
+/badge.tiff/1.1/Wed Jun 11 03:22:27 2003//
+/selectedDark.tiff/1.1/Tue Jul 22 12:55:22 2003//
+/light.tiff/1.1/Tue Jul 22 12:58:53 2003//
+/selectedLight.tiff/1.1/Tue Jul 22 12:57:59 2003//
+/dark.tiff/1.1/Tue Jul 22 12:55:44 2003//
+/ToDo/1.8/Mon Nov 10 09:20:25 2003//
+/USB Pickit Interface.c/-1.2/Mon Nov 10 21:10:16 2003//
+/regCode.m/1.3/Mon Nov 17 11:51:14 2003//
+/USB Pickit Interface.m/1.3/Mon Nov 17 10:43:06 2003//
+/SimpleSimulator.m/1.6/Mon Nov 17 11:44:04 2003//
+/romCode.m/1.10/Mon Nov 17 10:50:53 2003//
+/SimpleSimulator.h/1.3/Sat Nov 15 11:02:50 2003//
+/ramCode.m/1.5/Mon Nov 17 11:39:54 2003//
+/USB Pickit Interface.h/1.2/Sat Nov 15 11:43:07 2003//

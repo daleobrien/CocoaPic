@@ -1,0 +1,702 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXApplicationTarget section */
+		29B97326FDCFA39411CA2CEA /* CocoaPic */ = {
+			isa = PBXApplicationTarget;
+			buildConfigurationList = 2DF5F05008AB53DD00E26BCC /* Build configuration list for PBXApplicationTarget "CocoaPic" */;
+			buildPhases = (
+				29B97327FDCFA39411CA2CEA /* Headers */,
+				29B97328FDCFA39411CA2CEA /* Resources */,
+				29B9732BFDCFA39411CA2CEA /* Sources */,
+				29B9732DFDCFA39411CA2CEA /* Frameworks */,
+			);
+			dependencies = (
+			);
+			name = CocoaPic;
+			productInstallPath = "$(HOME)/Applications";
+			productName = CocoaPic;
+			productReference = 17587328FF379C6511CA2CBB /*  */;
+			productSettingsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>CocoaPic</string>
+	<key>CFBundleIconFile</key>
+	<string>12C671.icns</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Pic Simulator</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>Octo</string>
+	<key>CFBundleVersion</key>
+	<string>0.2</string>
+	<key>NSMainNibFile</key>
+	<string>MainMenu</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+</dict>
+</plist>
+";
+		};
+/* End PBXApplicationTarget section */
+
+/* Begin PBXBuildFile section */
+		080E96DCFE201CFB7F000001 /* MainMenu.nib in Resources */ = {isa = PBXBuildFile; fileRef = 29B97318FDCFA39411CA2CEA /* MainMenu.nib */; };
+		089C165EFE840E0CC02AAC07 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
+		1058C7A3FEA54F0111CA2CBB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
+		29B9732CFDCFA39411CA2CEA /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
+		431D5AEE054B8E7400F1FB4E /* PIC12F675_RETURN.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AE2054B8E7400F1FB4E /* PIC12F675_RETURN.c */; };
+		431D5AEF054B8E7400F1FB4E /* PIC12F675_SLEEP.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AE3054B8E7400F1FB4E /* PIC12F675_SLEEP.c */; };
+		431D5AF0054B8E7400F1FB4E /* PIC12F675_SUBLW.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AE4054B8E7400F1FB4E /* PIC12F675_SUBLW.c */; };
+		431D5AF1054B8E7400F1FB4E /* PIC12F675_XORLW.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AE5054B8E7400F1FB4E /* PIC12F675_XORLW.c */; };
+		431D5AF6054B8E8600F1FB4E /* PIC12F675_BCF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AF2054B8E8600F1FB4E /* PIC12F675_BCF.c */; };
+		431D5AF7054B8E8600F1FB4E /* PIC12F675_BSF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AF3054B8E8600F1FB4E /* PIC12F675_BSF.c */; };
+		431D5AF8054B8E8600F1FB4E /* PIC12F675_BTFSC.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AF4054B8E8600F1FB4E /* PIC12F675_BTFSC.c */; };
+		431D5AF9054B8E8600F1FB4E /* PIC12F675_BTFSS.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AF5054B8E8600F1FB4E /* PIC12F675_BTFSS.c */; };
+		431D5B1B054B8E9900F1FB4E /* PIC12F675_ADDLW.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5AFA054B8E9900F1FB4E /* PIC12F675_ADDLW.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B1C054B8E9900F1FB4E /* PIC12F675_ADDWF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5AFB054B8E9900F1FB4E /* PIC12F675_ADDWF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B1D054B8E9900F1FB4E /* PIC12F675_ANDLW.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5AFC054B8E9900F1FB4E /* PIC12F675_ANDLW.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B1E054B8E9900F1FB4E /* PIC12F675_ANDWF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5AFD054B8E9900F1FB4E /* PIC12F675_ANDWF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B1F054B8E9900F1FB4E /* PIC12F675_BCF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5AFE054B8E9900F1FB4E /* PIC12F675_BCF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B20054B8E9900F1FB4E /* PIC12F675_BSF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5AFF054B8E9900F1FB4E /* PIC12F675_BSF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B21054B8E9900F1FB4E /* PIC12F675_BTFSC.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B00054B8E9900F1FB4E /* PIC12F675_BTFSC.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B22054B8E9900F1FB4E /* PIC12F675_BTFSS.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B01054B8E9900F1FB4E /* PIC12F675_BTFSS.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B23054B8E9900F1FB4E /* PIC12F675_CALL.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B02054B8E9900F1FB4E /* PIC12F675_CALL.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B24054B8E9900F1FB4E /* PIC12F675_CLR.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B03054B8E9900F1FB4E /* PIC12F675_CLR.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B25054B8E9900F1FB4E /* PIC12F675_COMF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B04054B8E9900F1FB4E /* PIC12F675_COMF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B26054B8E9900F1FB4E /* PIC12F675_cpuCore.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B05054B8E9900F1FB4E /* PIC12F675_cpuCore.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B27054B8E9900F1FB4E /* PIC12F675_cpuMemory.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B06054B8E9900F1FB4E /* PIC12F675_cpuMemory.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B28054B8E9900F1FB4E /* PIC12F675_DECF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B07054B8E9900F1FB4E /* PIC12F675_DECF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B29054B8E9900F1FB4E /* PIC12F675_DECFSZ.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B08054B8E9900F1FB4E /* PIC12F675_DECFSZ.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B2A054B8E9900F1FB4E /* PIC12F675_GOTO.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B09054B8E9900F1FB4E /* PIC12F675_GOTO.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B2B054B8E9900F1FB4E /* PIC12F675_INCF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B0A054B8E9900F1FB4E /* PIC12F675_INCF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B2C054B8E9900F1FB4E /* PIC12F675_INCFSZ.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B0B054B8E9900F1FB4E /* PIC12F675_INCFSZ.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B2D054B8E9900F1FB4E /* PIC12F675_IORLW.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B0C054B8E9900F1FB4E /* PIC12F675_IORLW.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B2E054B8E9900F1FB4E /* PIC12F675_IORWF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B0D054B8E9900F1FB4E /* PIC12F675_IORWF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B2F054B8E9900F1FB4E /* PIC12F675_MOVF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B0E054B8E9900F1FB4E /* PIC12F675_MOVF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B30054B8E9900F1FB4E /* PIC12F675_MOVLW.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B0F054B8E9900F1FB4E /* PIC12F675_MOVLW.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B31054B8E9900F1FB4E /* PIC12F675_MOVWF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B10054B8E9900F1FB4E /* PIC12F675_MOVWF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B32054B8E9900F1FB4E /* PIC12F675_NOP.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B11054B8E9900F1FB4E /* PIC12F675_NOP.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B33054B8E9900F1FB4E /* PIC12F675_RETURN.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B12054B8E9900F1FB4E /* PIC12F675_RETURN.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B34054B8E9900F1FB4E /* PIC12F675_RLF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B13054B8E9900F1FB4E /* PIC12F675_RLF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B35054B8E9900F1FB4E /* PIC12F675_RRF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B14054B8E9900F1FB4E /* PIC12F675_RRF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B36054B8E9900F1FB4E /* PIC12F675_SLEEP.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B15054B8E9900F1FB4E /* PIC12F675_SLEEP.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B37054B8E9900F1FB4E /* PIC12F675_SUBLW.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B16054B8E9900F1FB4E /* PIC12F675_SUBLW.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B38054B8E9900F1FB4E /* PIC12F675_SUBWF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B17054B8E9900F1FB4E /* PIC12F675_SUBWF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B39054B8E9900F1FB4E /* PIC12F675_SWAPF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B18054B8E9900F1FB4E /* PIC12F675_SWAPF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B3A054B8E9900F1FB4E /* PIC12F675_XORLW.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B19054B8E9900F1FB4E /* PIC12F675_XORLW.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B3B054B8E9900F1FB4E /* PIC12F675_XORWF.h in Headers */ = {isa = PBXBuildFile; fileRef = 431D5B1A054B8E9900F1FB4E /* PIC12F675_XORWF.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		431D5B3F054B8EAB00F1FB4E /* PIC12F675_cpuCore.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5B3C054B8EAB00F1FB4E /* PIC12F675_cpuCore.c */; };
+		431D5B40054B8EAB00F1FB4E /* PIC12F675_cpuCoreNemonics.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5B3D054B8EAB00F1FB4E /* PIC12F675_cpuCoreNemonics.c */; };
+		431D5B41054B8EAB00F1FB4E /* PIC12F675_cpuMemory.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5B3E054B8EAB00F1FB4E /* PIC12F675_cpuMemory.c */; };
+		4326B907055769CC00E54CE6 /* PIC12F675_NOP.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AE1054B8E7400F1FB4E /* PIC12F675_NOP.c */; };
+		4326B908055769CC00E54CE6 /* PIC12F675_MOVLW.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AE0054B8E7400F1FB4E /* PIC12F675_MOVLW.c */; };
+		4326B909055769CC00E54CE6 /* PIC12F675_IORLW.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ADF054B8E7400F1FB4E /* PIC12F675_IORLW.c */; };
+		4326B90A055769CD00E54CE6 /* PIC12F675_GOTO.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ADE054B8E7400F1FB4E /* PIC12F675_GOTO.c */; };
+		4326B90B055769CD00E54CE6 /* PIC12F675_CLR.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ADD054B8E7400F1FB4E /* PIC12F675_CLR.c */; };
+		4326B90C055769CE00E54CE6 /* PIC12F675_CALL.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ADC054B8E7400F1FB4E /* PIC12F675_CALL.c */; };
+		4326B90D055769CE00E54CE6 /* PIC12F675_ANDLW.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ADB054B8E7400F1FB4E /* PIC12F675_ANDLW.c */; };
+		4326B90E055769CE00E54CE6 /* PIC12F675_ADDLW.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ADA054B8E7400F1FB4E /* PIC12F675_ADDLW.c */; };
+		4326B910055769DC00E54CE6 /* PIC12F675_ANDWF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ABD054B8E6100F1FB4E /* PIC12F675_ANDWF.c */; };
+		4326B911055769DC00E54CE6 /* PIC12F675_COMF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ABE054B8E6100F1FB4E /* PIC12F675_COMF.c */; };
+		4326B912055769DC00E54CE6 /* PIC12F675_DECF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ABF054B8E6100F1FB4E /* PIC12F675_DECF.c */; };
+		4326B913055769DD00E54CE6 /* PIC12F675_DECFSZ.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC0054B8E6100F1FB4E /* PIC12F675_DECFSZ.c */; };
+		4326B914055769DD00E54CE6 /* PIC12F675_INCF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC1054B8E6100F1FB4E /* PIC12F675_INCF.c */; };
+		4326B915055769DE00E54CE6 /* PIC12F675_INCFSZ.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC2054B8E6100F1FB4E /* PIC12F675_INCFSZ.c */; };
+		4326B916055769DE00E54CE6 /* PIC12F675_MOVF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC4054B8E6100F1FB4E /* PIC12F675_MOVF.c */; };
+		4326B917055769DF00E54CE6 /* PIC12F675_IORWF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC3054B8E6100F1FB4E /* PIC12F675_IORWF.c */; };
+		4326B918055769E000E54CE6 /* PIC12F675_MOVWF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC5054B8E6100F1FB4E /* PIC12F675_MOVWF.c */; };
+		4326B919055769E000E54CE6 /* PIC12F675_RLF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC6054B8E6100F1FB4E /* PIC12F675_RLF.c */; };
+		4326B91A055769E100E54CE6 /* PIC12F675_RRF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC7054B8E6100F1FB4E /* PIC12F675_RRF.c */; };
+		4326B91B055769E100E54CE6 /* PIC12F675_SUBWF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC8054B8E6100F1FB4E /* PIC12F675_SUBWF.c */; };
+		4326B91C055769E100E54CE6 /* PIC12F675_SWAPF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5AC9054B8E6100F1FB4E /* PIC12F675_SWAPF.c */; };
+		4326B91D055769E200E54CE6 /* PIC12F675_XORWF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ACA054B8E6100F1FB4E /* PIC12F675_XORWF.c */; };
+		4326B91E05576BD000E54CE6 /* PIC12F675_ADDWF.c in Sources */ = {isa = PBXBuildFile; fileRef = 431D5ABC054B8E6100F1FB4E /* PIC12F675_ADDWF.c */; };
+		434BC48204CD6CFC0014EAC0 /* dark.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 434BC48104CD6CFC0014EAC0 /* dark.tiff */; };
+		434BC48404CD6D0C0014EAC0 /* light.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 434BC48304CD6D0C0014EAC0 /* light.tiff */; };
+		434BC48704CD6D270014EAC0 /* selectedDark.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 434BC48504CD6D270014EAC0 /* selectedDark.tiff */; };
+		434BC48804CD6D270014EAC0 /* selectedLight.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 434BC48604CD6D270014EAC0 /* selectedLight.tiff */; };
+		4365A75A04C560BA00FA290C /* badge.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 4365A75904C560BA00FA290C /* badge.tiff */; };
+		43C21D8D05603334005007E4 /* USB Pickit Interface.h in Headers */ = {isa = PBXBuildFile; fileRef = 43C21D8B05603334005007E4 /* USB Pickit Interface.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		43C21D8E05603334005007E4 /* USB Pickit Interface.m in Sources */ = {isa = PBXBuildFile; fileRef = 43C21D8C05603334005007E4 /* USB Pickit Interface.m */; };
+		43C21D9B0560347F005007E4 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 43C21D9A0560347F005007E4 /* IOKit.framework */; };
+		43E4920E055DF60A0039B704 /* cpuExecution.c in Sources */ = {isa = PBXBuildFile; fileRef = F5327828029BAE3301A27090 /* cpuExecution.c */; };
+		43E88A2404B687C10037BDA4 /* OSTableView.h in Headers */ = {isa = PBXBuildFile; fileRef = 43E88A2204B687C00037BDA4 /* OSTableView.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		43E88A2504B687C10037BDA4 /* OSTableView.m in Sources */ = {isa = PBXBuildFile; fileRef = 43E88A2304B687C00037BDA4 /* OSTableView.m */; };
+		E602889503F9009700BE9608 /* 12C671.icns in Resources */ = {isa = PBXBuildFile; fileRef = E602889403F9009700BE9608 /* 12C671.icns */; };
+		F5281EFF029F329A013FE989 /* regCode.m in Sources */ = {isa = PBXBuildFile; fileRef = F5281EFC029F2FAD013FE989 /* regCode.m */; };
+		F5281F00029F329B013FE989 /* regCode.h in Headers */ = {isa = PBXBuildFile; fileRef = F5281EFB029F2FAD013FE989 /* regCode.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		F53277E5029BA5E301A27090 /* romCode.m in Sources */ = {isa = PBXBuildFile; fileRef = F53277E3029BA5E301A27090 /* romCode.m */; };
+		F53277E6029BA5E301A27090 /* romCode.h in Headers */ = {isa = PBXBuildFile; fileRef = F53277E4029BA5E301A27090 /* romCode.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		F53277E9029BA5EE01A27090 /* ramCode.m in Sources */ = {isa = PBXBuildFile; fileRef = F53277E7029BA5EE01A27090 /* ramCode.m */; };
+		F53277EA029BA5EE01A27090 /* ramCode.h in Headers */ = {isa = PBXBuildFile; fileRef = F53277E8029BA5EE01A27090 /* ramCode.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		F541328C0298F6CA015CE6CF /* SimpleSimulator.h in Headers */ = {isa = PBXBuildFile; fileRef = F541328A0298F6CA015CE6CF /* SimpleSimulator.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		F541328D0298F6CA015CE6CF /* SimpleSimulator.m in Sources */ = {isa = PBXBuildFile; fileRef = F541328B0298F6CA015CE6CF /* SimpleSimulator.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		089C165DFE840E0CC02AAC07 /* English */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = English; path = English.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
+		17587328FF379C6511CA2CBB /*  */ = {isa = PBXFileReference; explicitFileType = wrapper.application; name = ""; sourceTree = BUILT_PRODUCTS_DIR; };
+		29B97316FDCFA39411CA2CEA /* main.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		29B97319FDCFA39411CA2CEA /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/MainMenu.nib; sourceTree = "<group>"; };
+		29B97324FDCFA39411CA2CEA /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
+		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
+		431D5ABC054B8E6100F1FB4E /* PIC12F675_ADDWF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_ADDWF.c; path = Byte/PIC12F675_ADDWF.c; sourceTree = "<group>"; };
+		431D5ABD054B8E6100F1FB4E /* PIC12F675_ANDWF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_ANDWF.c; path = Byte/PIC12F675_ANDWF.c; sourceTree = "<group>"; };
+		431D5ABE054B8E6100F1FB4E /* PIC12F675_COMF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_COMF.c; path = Byte/PIC12F675_COMF.c; sourceTree = "<group>"; };
+		431D5ABF054B8E6100F1FB4E /* PIC12F675_DECF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_DECF.c; path = Byte/PIC12F675_DECF.c; sourceTree = "<group>"; };
+		431D5AC0054B8E6100F1FB4E /* PIC12F675_DECFSZ.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_DECFSZ.c; path = Byte/PIC12F675_DECFSZ.c; sourceTree = "<group>"; };
+		431D5AC1054B8E6100F1FB4E /* PIC12F675_INCF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_INCF.c; path = Byte/PIC12F675_INCF.c; sourceTree = "<group>"; };
+		431D5AC2054B8E6100F1FB4E /* PIC12F675_INCFSZ.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_INCFSZ.c; path = Byte/PIC12F675_INCFSZ.c; sourceTree = "<group>"; };
+		431D5AC3054B8E6100F1FB4E /* PIC12F675_IORWF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_IORWF.c; path = Byte/PIC12F675_IORWF.c; sourceTree = "<group>"; };
+		431D5AC4054B8E6100F1FB4E /* PIC12F675_MOVF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_MOVF.c; path = Byte/PIC12F675_MOVF.c; sourceTree = "<group>"; };
+		431D5AC5054B8E6100F1FB4E /* PIC12F675_MOVWF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_MOVWF.c; path = Byte/PIC12F675_MOVWF.c; sourceTree = "<group>"; };
+		431D5AC6054B8E6100F1FB4E /* PIC12F675_RLF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_RLF.c; path = Byte/PIC12F675_RLF.c; sourceTree = "<group>"; };
+		431D5AC7054B8E6100F1FB4E /* PIC12F675_RRF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_RRF.c; path = Byte/PIC12F675_RRF.c; sourceTree = "<group>"; };
+		431D5AC8054B8E6100F1FB4E /* PIC12F675_SUBWF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_SUBWF.c; path = Byte/PIC12F675_SUBWF.c; sourceTree = "<group>"; };
+		431D5AC9054B8E6100F1FB4E /* PIC12F675_SWAPF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_SWAPF.c; path = Byte/PIC12F675_SWAPF.c; sourceTree = "<group>"; };
+		431D5ACA054B8E6100F1FB4E /* PIC12F675_XORWF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_XORWF.c; path = Byte/PIC12F675_XORWF.c; sourceTree = "<group>"; };
+		431D5ADA054B8E7400F1FB4E /* PIC12F675_ADDLW.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_ADDLW.c; path = Literal/PIC12F675_ADDLW.c; sourceTree = "<group>"; };
+		431D5ADB054B8E7400F1FB4E /* PIC12F675_ANDLW.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_ANDLW.c; path = Literal/PIC12F675_ANDLW.c; sourceTree = "<group>"; };
+		431D5ADC054B8E7400F1FB4E /* PIC12F675_CALL.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_CALL.c; path = Literal/PIC12F675_CALL.c; sourceTree = "<group>"; };
+		431D5ADD054B8E7400F1FB4E /* PIC12F675_CLR.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_CLR.c; path = Literal/PIC12F675_CLR.c; sourceTree = "<group>"; };
+		431D5ADE054B8E7400F1FB4E /* PIC12F675_GOTO.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_GOTO.c; path = Literal/PIC12F675_GOTO.c; sourceTree = "<group>"; };
+		431D5ADF054B8E7400F1FB4E /* PIC12F675_IORLW.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_IORLW.c; path = Literal/PIC12F675_IORLW.c; sourceTree = "<group>"; };
+		431D5AE0054B8E7400F1FB4E /* PIC12F675_MOVLW.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_MOVLW.c; path = Literal/PIC12F675_MOVLW.c; sourceTree = "<group>"; };
+		431D5AE1054B8E7400F1FB4E /* PIC12F675_NOP.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_NOP.c; path = Literal/PIC12F675_NOP.c; sourceTree = "<group>"; };
+		431D5AE2054B8E7400F1FB4E /* PIC12F675_RETURN.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_RETURN.c; path = Literal/PIC12F675_RETURN.c; sourceTree = "<group>"; };
+		431D5AE3054B8E7400F1FB4E /* PIC12F675_SLEEP.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_SLEEP.c; path = Literal/PIC12F675_SLEEP.c; sourceTree = "<group>"; };
+		431D5AE4054B8E7400F1FB4E /* PIC12F675_SUBLW.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_SUBLW.c; path = Literal/PIC12F675_SUBLW.c; sourceTree = "<group>"; };
+		431D5AE5054B8E7400F1FB4E /* PIC12F675_XORLW.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_XORLW.c; path = Literal/PIC12F675_XORLW.c; sourceTree = "<group>"; };
+		431D5AF2054B8E8600F1FB4E /* PIC12F675_BCF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_BCF.c; path = Bit/PIC12F675_BCF.c; sourceTree = "<group>"; };
+		431D5AF3054B8E8600F1FB4E /* PIC12F675_BSF.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_BSF.c; path = Bit/PIC12F675_BSF.c; sourceTree = "<group>"; };
+		431D5AF4054B8E8600F1FB4E /* PIC12F675_BTFSC.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_BTFSC.c; path = Bit/PIC12F675_BTFSC.c; sourceTree = "<group>"; };
+		431D5AF5054B8E8600F1FB4E /* PIC12F675_BTFSS.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = PIC12F675_BTFSS.c; path = Bit/PIC12F675_BTFSS.c; sourceTree = "<group>"; };
+		431D5AFA054B8E9900F1FB4E /* PIC12F675_ADDLW.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_ADDLW.h; path = Headers/PIC12F675_ADDLW.h; sourceTree = "<group>"; };
+		431D5AFB054B8E9900F1FB4E /* PIC12F675_ADDWF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_ADDWF.h; path = Headers/PIC12F675_ADDWF.h; sourceTree = "<group>"; };
+		431D5AFC054B8E9900F1FB4E /* PIC12F675_ANDLW.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_ANDLW.h; path = Headers/PIC12F675_ANDLW.h; sourceTree = "<group>"; };
+		431D5AFD054B8E9900F1FB4E /* PIC12F675_ANDWF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_ANDWF.h; path = Headers/PIC12F675_ANDWF.h; sourceTree = "<group>"; };
+		431D5AFE054B8E9900F1FB4E /* PIC12F675_BCF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_BCF.h; path = Headers/PIC12F675_BCF.h; sourceTree = "<group>"; };
+		431D5AFF054B8E9900F1FB4E /* PIC12F675_BSF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_BSF.h; path = Headers/PIC12F675_BSF.h; sourceTree = "<group>"; };
+		431D5B00054B8E9900F1FB4E /* PIC12F675_BTFSC.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_BTFSC.h; path = Headers/PIC12F675_BTFSC.h; sourceTree = "<group>"; };
+		431D5B01054B8E9900F1FB4E /* PIC12F675_BTFSS.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_BTFSS.h; path = Headers/PIC12F675_BTFSS.h; sourceTree = "<group>"; };
+		431D5B02054B8E9900F1FB4E /* PIC12F675_CALL.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_CALL.h; path = Headers/PIC12F675_CALL.h; sourceTree = "<group>"; };
+		431D5B03054B8E9900F1FB4E /* PIC12F675_CLR.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_CLR.h; path = Headers/PIC12F675_CLR.h; sourceTree = "<group>"; };
+		431D5B04054B8E9900F1FB4E /* PIC12F675_COMF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_COMF.h; path = Headers/PIC12F675_COMF.h; sourceTree = "<group>"; };
+		431D5B05054B8E9900F1FB4E /* PIC12F675_cpuCore.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_cpuCore.h; path = Headers/PIC12F675_cpuCore.h; sourceTree = "<group>"; };
+		431D5B06054B8E9900F1FB4E /* PIC12F675_cpuMemory.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_cpuMemory.h; path = Headers/PIC12F675_cpuMemory.h; sourceTree = "<group>"; };
+		431D5B07054B8E9900F1FB4E /* PIC12F675_DECF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_DECF.h; path = Headers/PIC12F675_DECF.h; sourceTree = "<group>"; };
+		431D5B08054B8E9900F1FB4E /* PIC12F675_DECFSZ.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_DECFSZ.h; path = Headers/PIC12F675_DECFSZ.h; sourceTree = "<group>"; };
+		431D5B09054B8E9900F1FB4E /* PIC12F675_GOTO.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_GOTO.h; path = Headers/PIC12F675_GOTO.h; sourceTree = "<group>"; };
+		431D5B0A054B8E9900F1FB4E /* PIC12F675_INCF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_INCF.h; path = Headers/PIC12F675_INCF.h; sourceTree = "<group>"; };
+		431D5B0B054B8E9900F1FB4E /* PIC12F675_INCFSZ.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_INCFSZ.h; path = Headers/PIC12F675_INCFSZ.h; sourceTree = "<group>"; };
+		431D5B0C054B8E9900F1FB4E /* PIC12F675_IORLW.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_IORLW.h; path = Headers/PIC12F675_IORLW.h; sourceTree = "<group>"; };
+		431D5B0D054B8E9900F1FB4E /* PIC12F675_IORWF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_IORWF.h; path = Headers/PIC12F675_IORWF.h; sourceTree = "<group>"; };
+		431D5B0E054B8E9900F1FB4E /* PIC12F675_MOVF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_MOVF.h; path = Headers/PIC12F675_MOVF.h; sourceTree = "<group>"; };
+		431D5B0F054B8E9900F1FB4E /* PIC12F675_MOVLW.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_MOVLW.h; path = Headers/PIC12F675_MOVLW.h; sourceTree = "<group>"; };
+		431D5B10054B8E9900F1FB4E /* PIC12F675_MOVWF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_MOVWF.h; path = Headers/PIC12F675_MOVWF.h; sourceTree = "<group>"; };
+		431D5B11054B8E9900F1FB4E /* PIC12F675_NOP.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_NOP.h; path = Headers/PIC12F675_NOP.h; sourceTree = "<group>"; };
+		431D5B12054B8E9900F1FB4E /* PIC12F675_RETURN.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_RETURN.h; path = Headers/PIC12F675_RETURN.h; sourceTree = "<group>"; };
+		431D5B13054B8E9900F1FB4E /* PIC12F675_RLF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_RLF.h; path = Headers/PIC12F675_RLF.h; sourceTree = "<group>"; };
+		431D5B14054B8E9900F1FB4E /* PIC12F675_RRF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_RRF.h; path = Headers/PIC12F675_RRF.h; sourceTree = "<group>"; };
+		431D5B15054B8E9900F1FB4E /* PIC12F675_SLEEP.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_SLEEP.h; path = Headers/PIC12F675_SLEEP.h; sourceTree = "<group>"; };
+		431D5B16054B8E9900F1FB4E /* PIC12F675_SUBLW.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_SUBLW.h; path = Headers/PIC12F675_SUBLW.h; sourceTree = "<group>"; };
+		431D5B17054B8E9900F1FB4E /* PIC12F675_SUBWF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_SUBWF.h; path = Headers/PIC12F675_SUBWF.h; sourceTree = "<group>"; };
+		431D5B18054B8E9900F1FB4E /* PIC12F675_SWAPF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_SWAPF.h; path = Headers/PIC12F675_SWAPF.h; sourceTree = "<group>"; };
+		431D5B19054B8E9900F1FB4E /* PIC12F675_XORLW.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_XORLW.h; path = Headers/PIC12F675_XORLW.h; sourceTree = "<group>"; };
+		431D5B1A054B8E9900F1FB4E /* PIC12F675_XORWF.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = PIC12F675_XORWF.h; path = Headers/PIC12F675_XORWF.h; sourceTree = "<group>"; };
+		431D5B3C054B8EAB00F1FB4E /* PIC12F675_cpuCore.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; path = PIC12F675_cpuCore.c; sourceTree = "<group>"; };
+		431D5B3D054B8EAB00F1FB4E /* PIC12F675_cpuCoreNemonics.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; path = PIC12F675_cpuCoreNemonics.c; sourceTree = "<group>"; };
+		431D5B3E054B8EAB00F1FB4E /* PIC12F675_cpuMemory.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; path = PIC12F675_cpuMemory.c; sourceTree = "<group>"; };
+		434BC48104CD6CFC0014EAC0 /* dark.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = dark.tiff; sourceTree = "<group>"; };
+		434BC48304CD6D0C0014EAC0 /* light.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = light.tiff; sourceTree = "<group>"; };
+		434BC48504CD6D270014EAC0 /* selectedDark.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = selectedDark.tiff; sourceTree = "<group>"; };
+		434BC48604CD6D270014EAC0 /* selectedLight.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = selectedLight.tiff; sourceTree = "<group>"; };
+		4365A75904C560BA00FA290C /* badge.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = badge.tiff; sourceTree = "<group>"; };
+		43C21D8B05603334005007E4 /* USB Pickit Interface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "USB Pickit Interface.h"; sourceTree = "<group>"; };
+		43C21D8C05603334005007E4 /* USB Pickit Interface.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "USB Pickit Interface.m"; sourceTree = "<group>"; };
+		43C21D9A0560347F005007E4 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = /System/Library/Frameworks/IOKit.framework; sourceTree = "<absolute>"; };
+		43E88A2204B687C00037BDA4 /* OSTableView.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = OSTableView.h; sourceTree = "<group>"; };
+		43E88A2304B687C00037BDA4 /* OSTableView.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = OSTableView.m; sourceTree = "<group>"; };
+		E602889403F9009700BE9608 /* 12C671.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = 12C671.icns; sourceTree = "<group>"; };
+		F5281EFB029F2FAD013FE989 /* regCode.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = regCode.h; sourceTree = "<group>"; };
+		F5281EFC029F2FAD013FE989 /* regCode.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = regCode.m; sourceTree = "<group>"; };
+		F53277E3029BA5E301A27090 /* romCode.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = romCode.m; sourceTree = "<group>"; };
+		F53277E4029BA5E301A27090 /* romCode.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = romCode.h; sourceTree = "<group>"; };
+		F53277E7029BA5EE01A27090 /* ramCode.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = ramCode.m; sourceTree = "<group>"; };
+		F53277E8029BA5EE01A27090 /* ramCode.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = ramCode.h; sourceTree = "<group>"; };
+		F5327828029BAE3301A27090 /* cpuExecution.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cpuExecution.c; sourceTree = SOURCE_ROOT; };
+		F5327841029BAE3401A27090 /* English */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.rtf; name = English; path = English.lproj/ToDo.rtf; sourceTree = SOURCE_ROOT; };
+		F541328A0298F6CA015CE6CF /* SimpleSimulator.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = SimpleSimulator.h; sourceTree = "<group>"; };
+		F541328B0298F6CA015CE6CF /* SimpleSimulator.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = SimpleSimulator.m; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		29B9732DFDCFA39411CA2CEA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1058C7A3FEA54F0111CA2CBB /* Cocoa.framework in Frameworks */,
+				43C21D9B0560347F005007E4 /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		080E96DDFE201D6D7F000001 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				431D5A25054B698600F1FB4E /* PIC12F675 */,
+			);
+			name = Classes;
+			sourceTree = "<group>";
+		};
+		1058C7A0FEA54F0111CA2CBB /* Linked Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */,
+			);
+			name = "Linked Frameworks";
+			sourceTree = "<group>";
+		};
+		1058C7A2FEA54F0111CA2CBB /* Other Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				29B97325FDCFA39411CA2CEA /* Foundation.framework */,
+				29B97324FDCFA39411CA2CEA /* AppKit.framework */,
+			);
+			name = "Other Frameworks";
+			sourceTree = "<group>";
+		};
+		19C28FACFE9D520D11CA2CBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				17587328FF379C6511CA2CBB /*  */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		29B97314FDCFA39411CA2CEA /* CocoaPic */ = {
+			isa = PBXGroup;
+			children = (
+				080E96DDFE201D6D7F000001 /* Classes */,
+				29B97315FDCFA39411CA2CEA /* Other Sources */,
+				29B97317FDCFA39411CA2CEA /* Resources */,
+				29B97323FDCFA39411CA2CEA /* Frameworks */,
+				19C28FACFE9D520D11CA2CBB /* Products */,
+				43D1410905624296006A6D55 /* ToDo.rtf */,
+				4365A75904C560BA00FA290C /* badge.tiff */,
+				E602889403F9009700BE9608 /* 12C671.icns */,
+				434BC48104CD6CFC0014EAC0 /* dark.tiff */,
+				434BC48304CD6D0C0014EAC0 /* light.tiff */,
+				434BC48504CD6D270014EAC0 /* selectedDark.tiff */,
+				434BC48604CD6D270014EAC0 /* selectedLight.tiff */,
+			);
+			name = CocoaPic;
+			sourceTree = "<group>";
+		};
+		29B97315FDCFA39411CA2CEA /* Other Sources */ = {
+			isa = PBXGroup;
+			children = (
+				F5327828029BAE3301A27090 /* cpuExecution.c */,
+				43E88A2204B687C00037BDA4 /* OSTableView.h */,
+				43E88A2304B687C00037BDA4 /* OSTableView.m */,
+				29B97316FDCFA39411CA2CEA /* main.m */,
+				F541328A0298F6CA015CE6CF /* SimpleSimulator.h */,
+				F541328B0298F6CA015CE6CF /* SimpleSimulator.m */,
+				F53277E4029BA5E301A27090 /* romCode.h */,
+				F53277E3029BA5E301A27090 /* romCode.m */,
+				F53277E8029BA5EE01A27090 /* ramCode.h */,
+				F53277E7029BA5EE01A27090 /* ramCode.m */,
+				F5281EFB029F2FAD013FE989 /* regCode.h */,
+				F5281EFC029F2FAD013FE989 /* regCode.m */,
+				43C21D8B05603334005007E4 /* USB Pickit Interface.h */,
+				43C21D8C05603334005007E4 /* USB Pickit Interface.m */,
+			);
+			name = "Other Sources";
+			sourceTree = "<group>";
+		};
+		29B97317FDCFA39411CA2CEA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				29B97318FDCFA39411CA2CEA /* MainMenu.nib */,
+				089C165CFE840E0CC02AAC07 /* InfoPlist.strings */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		29B97323FDCFA39411CA2CEA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1058C7A0FEA54F0111CA2CBB /* Linked Frameworks */,
+				1058C7A2FEA54F0111CA2CBB /* Other Frameworks */,
+				43C21D9A0560347F005007E4 /* IOKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		431D5A25054B698600F1FB4E /* PIC12F675 */ = {
+			isa = PBXGroup;
+			children = (
+				431D5A26054B699400F1FB4E /* headers */,
+				431D5A27054B699C00F1FB4E /* Core */,
+				431D5A28054B69AB00F1FB4E /* Bit */,
+				431D5A2A054B69B700F1FB4E /* Literal */,
+				431D5A29054B69B100F1FB4E /* Byte */,
+			);
+			path = PIC12F675;
+			sourceTree = "<group>";
+		};
+		431D5A26054B699400F1FB4E /* headers */ = {
+			isa = PBXGroup;
+			children = (
+				431D5AFA054B8E9900F1FB4E /* PIC12F675_ADDLW.h */,
+				431D5AFB054B8E9900F1FB4E /* PIC12F675_ADDWF.h */,
+				431D5AFC054B8E9900F1FB4E /* PIC12F675_ANDLW.h */,
+				431D5AFD054B8E9900F1FB4E /* PIC12F675_ANDWF.h */,
+				431D5AFE054B8E9900F1FB4E /* PIC12F675_BCF.h */,
+				431D5AFF054B8E9900F1FB4E /* PIC12F675_BSF.h */,
+				431D5B00054B8E9900F1FB4E /* PIC12F675_BTFSC.h */,
+				431D5B01054B8E9900F1FB4E /* PIC12F675_BTFSS.h */,
+				431D5B02054B8E9900F1FB4E /* PIC12F675_CALL.h */,
+				431D5B03054B8E9900F1FB4E /* PIC12F675_CLR.h */,
+				431D5B04054B8E9900F1FB4E /* PIC12F675_COMF.h */,
+				431D5B07054B8E9900F1FB4E /* PIC12F675_DECF.h */,
+				431D5B08054B8E9900F1FB4E /* PIC12F675_DECFSZ.h */,
+				431D5B09054B8E9900F1FB4E /* PIC12F675_GOTO.h */,
+				431D5B0A054B8E9900F1FB4E /* PIC12F675_INCF.h */,
+				431D5B0B054B8E9900F1FB4E /* PIC12F675_INCFSZ.h */,
+				431D5B0C054B8E9900F1FB4E /* PIC12F675_IORLW.h */,
+				431D5B0D054B8E9900F1FB4E /* PIC12F675_IORWF.h */,
+				431D5B0E054B8E9900F1FB4E /* PIC12F675_MOVF.h */,
+				431D5B0F054B8E9900F1FB4E /* PIC12F675_MOVLW.h */,
+				431D5B10054B8E9900F1FB4E /* PIC12F675_MOVWF.h */,
+				431D5B11054B8E9900F1FB4E /* PIC12F675_NOP.h */,
+				431D5B12054B8E9900F1FB4E /* PIC12F675_RETURN.h */,
+				431D5B13054B8E9900F1FB4E /* PIC12F675_RLF.h */,
+				431D5B14054B8E9900F1FB4E /* PIC12F675_RRF.h */,
+				431D5B15054B8E9900F1FB4E /* PIC12F675_SLEEP.h */,
+				431D5B16054B8E9900F1FB4E /* PIC12F675_SUBLW.h */,
+				431D5B17054B8E9900F1FB4E /* PIC12F675_SUBWF.h */,
+				431D5B18054B8E9900F1FB4E /* PIC12F675_SWAPF.h */,
+				431D5B19054B8E9900F1FB4E /* PIC12F675_XORLW.h */,
+				431D5B1A054B8E9900F1FB4E /* PIC12F675_XORWF.h */,
+			);
+			name = headers;
+			sourceTree = "<group>";
+		};
+		431D5A27054B699C00F1FB4E /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				431D5B05054B8E9900F1FB4E /* PIC12F675_cpuCore.h */,
+				431D5B06054B8E9900F1FB4E /* PIC12F675_cpuMemory.h */,
+				431D5B3C054B8EAB00F1FB4E /* PIC12F675_cpuCore.c */,
+				431D5B3D054B8EAB00F1FB4E /* PIC12F675_cpuCoreNemonics.c */,
+				431D5B3E054B8EAB00F1FB4E /* PIC12F675_cpuMemory.c */,
+			);
+			name = Core;
+			sourceTree = "<group>";
+		};
+		431D5A28054B69AB00F1FB4E /* Bit */ = {
+			isa = PBXGroup;
+			children = (
+				431D5AF2054B8E8600F1FB4E /* PIC12F675_BCF.c */,
+				431D5AF3054B8E8600F1FB4E /* PIC12F675_BSF.c */,
+				431D5AF4054B8E8600F1FB4E /* PIC12F675_BTFSC.c */,
+				431D5AF5054B8E8600F1FB4E /* PIC12F675_BTFSS.c */,
+			);
+			name = Bit;
+			sourceTree = "<group>";
+		};
+		431D5A29054B69B100F1FB4E /* Byte */ = {
+			isa = PBXGroup;
+			children = (
+				431D5ABC054B8E6100F1FB4E /* PIC12F675_ADDWF.c */,
+				431D5ABD054B8E6100F1FB4E /* PIC12F675_ANDWF.c */,
+				431D5ABE054B8E6100F1FB4E /* PIC12F675_COMF.c */,
+				431D5ABF054B8E6100F1FB4E /* PIC12F675_DECF.c */,
+				431D5AC0054B8E6100F1FB4E /* PIC12F675_DECFSZ.c */,
+				431D5AC1054B8E6100F1FB4E /* PIC12F675_INCF.c */,
+				431D5AC2054B8E6100F1FB4E /* PIC12F675_INCFSZ.c */,
+				431D5AC3054B8E6100F1FB4E /* PIC12F675_IORWF.c */,
+				431D5AC4054B8E6100F1FB4E /* PIC12F675_MOVF.c */,
+				431D5AC5054B8E6100F1FB4E /* PIC12F675_MOVWF.c */,
+				431D5AC6054B8E6100F1FB4E /* PIC12F675_RLF.c */,
+				431D5AC7054B8E6100F1FB4E /* PIC12F675_RRF.c */,
+				431D5AC8054B8E6100F1FB4E /* PIC12F675_SUBWF.c */,
+				431D5AC9054B8E6100F1FB4E /* PIC12F675_SWAPF.c */,
+				431D5ACA054B8E6100F1FB4E /* PIC12F675_XORWF.c */,
+			);
+			name = Byte;
+			sourceTree = "<group>";
+		};
+		431D5A2A054B69B700F1FB4E /* Literal */ = {
+			isa = PBXGroup;
+			children = (
+				431D5ADA054B8E7400F1FB4E /* PIC12F675_ADDLW.c */,
+				431D5ADB054B8E7400F1FB4E /* PIC12F675_ANDLW.c */,
+				431D5ADC054B8E7400F1FB4E /* PIC12F675_CALL.c */,
+				431D5ADD054B8E7400F1FB4E /* PIC12F675_CLR.c */,
+				431D5ADE054B8E7400F1FB4E /* PIC12F675_GOTO.c */,
+				431D5ADF054B8E7400F1FB4E /* PIC12F675_IORLW.c */,
+				431D5AE0054B8E7400F1FB4E /* PIC12F675_MOVLW.c */,
+				431D5AE1054B8E7400F1FB4E /* PIC12F675_NOP.c */,
+				431D5AE2054B8E7400F1FB4E /* PIC12F675_RETURN.c */,
+				431D5AE3054B8E7400F1FB4E /* PIC12F675_SLEEP.c */,
+				431D5AE4054B8E7400F1FB4E /* PIC12F675_SUBLW.c */,
+				431D5AE5054B8E7400F1FB4E /* PIC12F675_XORLW.c */,
+			);
+			name = Literal;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		29B97327FDCFA39411CA2CEA /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F541328C0298F6CA015CE6CF /* SimpleSimulator.h in Headers */,
+				F53277E6029BA5E301A27090 /* romCode.h in Headers */,
+				F53277EA029BA5EE01A27090 /* ramCode.h in Headers */,
+				F5281F00029F329B013FE989 /* regCode.h in Headers */,
+				43E88A2404B687C10037BDA4 /* OSTableView.h in Headers */,
+				431D5B1B054B8E9900F1FB4E /* PIC12F675_ADDLW.h in Headers */,
+				431D5B1C054B8E9900F1FB4E /* PIC12F675_ADDWF.h in Headers */,
+				431D5B1D054B8E9900F1FB4E /* PIC12F675_ANDLW.h in Headers */,
+				431D5B1E054B8E9900F1FB4E /* PIC12F675_ANDWF.h in Headers */,
+				431D5B1F054B8E9900F1FB4E /* PIC12F675_BCF.h in Headers */,
+				431D5B20054B8E9900F1FB4E /* PIC12F675_BSF.h in Headers */,
+				431D5B21054B8E9900F1FB4E /* PIC12F675_BTFSC.h in Headers */,
+				431D5B22054B8E9900F1FB4E /* PIC12F675_BTFSS.h in Headers */,
+				431D5B23054B8E9900F1FB4E /* PIC12F675_CALL.h in Headers */,
+				431D5B24054B8E9900F1FB4E /* PIC12F675_CLR.h in Headers */,
+				431D5B25054B8E9900F1FB4E /* PIC12F675_COMF.h in Headers */,
+				431D5B26054B8E9900F1FB4E /* PIC12F675_cpuCore.h in Headers */,
+				431D5B27054B8E9900F1FB4E /* PIC12F675_cpuMemory.h in Headers */,
+				431D5B28054B8E9900F1FB4E /* PIC12F675_DECF.h in Headers */,
+				431D5B29054B8E9900F1FB4E /* PIC12F675_DECFSZ.h in Headers */,
+				431D5B2A054B8E9900F1FB4E /* PIC12F675_GOTO.h in Headers */,
+				431D5B2B054B8E9900F1FB4E /* PIC12F675_INCF.h in Headers */,
+				431D5B2C054B8E9900F1FB4E /* PIC12F675_INCFSZ.h in Headers */,
+				431D5B2D054B8E9900F1FB4E /* PIC12F675_IORLW.h in Headers */,
+				431D5B2E054B8E9900F1FB4E /* PIC12F675_IORWF.h in Headers */,
+				431D5B2F054B8E9900F1FB4E /* PIC12F675_MOVF.h in Headers */,
+				431D5B30054B8E9900F1FB4E /* PIC12F675_MOVLW.h in Headers */,
+				431D5B31054B8E9900F1FB4E /* PIC12F675_MOVWF.h in Headers */,
+				431D5B32054B8E9900F1FB4E /* PIC12F675_NOP.h in Headers */,
+				431D5B33054B8E9900F1FB4E /* PIC12F675_RETURN.h in Headers */,
+				431D5B34054B8E9900F1FB4E /* PIC12F675_RLF.h in Headers */,
+				431D5B35054B8E9900F1FB4E /* PIC12F675_RRF.h in Headers */,
+				431D5B36054B8E9900F1FB4E /* PIC12F675_SLEEP.h in Headers */,
+				431D5B37054B8E9900F1FB4E /* PIC12F675_SUBLW.h in Headers */,
+				431D5B38054B8E9900F1FB4E /* PIC12F675_SUBWF.h in Headers */,
+				431D5B39054B8E9900F1FB4E /* PIC12F675_SWAPF.h in Headers */,
+				431D5B3A054B8E9900F1FB4E /* PIC12F675_XORLW.h in Headers */,
+				431D5B3B054B8E9900F1FB4E /* PIC12F675_XORWF.h in Headers */,
+				43C21D8D05603334005007E4 /* USB Pickit Interface.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXProject section */
+		29B97313FDCFA39411CA2CEA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2710;
+			};
+			buildConfigurationList = 2DF5F05408AB53DD00E26BCC /* Build configuration list for PBXProject "CocoaPic" */;
+			compatibilityVersion = "Xcode 2.4";
+			developmentRegion = en;
+			hasScannedForEncodings = 1;
+			knownRegions = (
+				en,
+				Base,
+				English,
+			);
+			mainGroup = 29B97314FDCFA39411CA2CEA /* CocoaPic */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				29B97326FDCFA39411CA2CEA /* CocoaPic */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		29B97328FDCFA39411CA2CEA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				080E96DCFE201CFB7F000001 /* MainMenu.nib in Resources */,
+				089C165EFE840E0CC02AAC07 /* InfoPlist.strings in Resources */,
+				E602889503F9009700BE9608 /* 12C671.icns in Resources */,
+				4365A75A04C560BA00FA290C /* badge.tiff in Resources */,
+				434BC48204CD6CFC0014EAC0 /* dark.tiff in Resources */,
+				434BC48404CD6D0C0014EAC0 /* light.tiff in Resources */,
+				434BC48704CD6D270014EAC0 /* selectedDark.tiff in Resources */,
+				434BC48804CD6D270014EAC0 /* selectedLight.tiff in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		29B9732BFDCFA39411CA2CEA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				29B9732CFDCFA39411CA2CEA /* main.m in Sources */,
+				F541328D0298F6CA015CE6CF /* SimpleSimulator.m in Sources */,
+				F53277E5029BA5E301A27090 /* romCode.m in Sources */,
+				F53277E9029BA5EE01A27090 /* ramCode.m in Sources */,
+				F5281EFF029F329A013FE989 /* regCode.m in Sources */,
+				43E88A2504B687C10037BDA4 /* OSTableView.m in Sources */,
+				431D5AEE054B8E7400F1FB4E /* PIC12F675_RETURN.c in Sources */,
+				431D5AEF054B8E7400F1FB4E /* PIC12F675_SLEEP.c in Sources */,
+				431D5AF0054B8E7400F1FB4E /* PIC12F675_SUBLW.c in Sources */,
+				431D5AF1054B8E7400F1FB4E /* PIC12F675_XORLW.c in Sources */,
+				431D5AF6054B8E8600F1FB4E /* PIC12F675_BCF.c in Sources */,
+				431D5AF7054B8E8600F1FB4E /* PIC12F675_BSF.c in Sources */,
+				431D5AF8054B8E8600F1FB4E /* PIC12F675_BTFSC.c in Sources */,
+				431D5AF9054B8E8600F1FB4E /* PIC12F675_BTFSS.c in Sources */,
+				431D5B3F054B8EAB00F1FB4E /* PIC12F675_cpuCore.c in Sources */,
+				431D5B40054B8EAB00F1FB4E /* PIC12F675_cpuCoreNemonics.c in Sources */,
+				431D5B41054B8EAB00F1FB4E /* PIC12F675_cpuMemory.c in Sources */,
+				4326B907055769CC00E54CE6 /* PIC12F675_NOP.c in Sources */,
+				4326B908055769CC00E54CE6 /* PIC12F675_MOVLW.c in Sources */,
+				4326B909055769CC00E54CE6 /* PIC12F675_IORLW.c in Sources */,
+				4326B90A055769CD00E54CE6 /* PIC12F675_GOTO.c in Sources */,
+				4326B90B055769CD00E54CE6 /* PIC12F675_CLR.c in Sources */,
+				4326B90C055769CE00E54CE6 /* PIC12F675_CALL.c in Sources */,
+				4326B90D055769CE00E54CE6 /* PIC12F675_ANDLW.c in Sources */,
+				4326B90E055769CE00E54CE6 /* PIC12F675_ADDLW.c in Sources */,
+				4326B910055769DC00E54CE6 /* PIC12F675_ANDWF.c in Sources */,
+				4326B911055769DC00E54CE6 /* PIC12F675_COMF.c in Sources */,
+				4326B912055769DC00E54CE6 /* PIC12F675_DECF.c in Sources */,
+				4326B913055769DD00E54CE6 /* PIC12F675_DECFSZ.c in Sources */,
+				4326B914055769DD00E54CE6 /* PIC12F675_INCF.c in Sources */,
+				4326B915055769DE00E54CE6 /* PIC12F675_INCFSZ.c in Sources */,
+				4326B916055769DE00E54CE6 /* PIC12F675_MOVF.c in Sources */,
+				4326B917055769DF00E54CE6 /* PIC12F675_IORWF.c in Sources */,
+				4326B918055769E000E54CE6 /* PIC12F675_MOVWF.c in Sources */,
+				4326B919055769E000E54CE6 /* PIC12F675_RLF.c in Sources */,
+				4326B91A055769E100E54CE6 /* PIC12F675_RRF.c in Sources */,
+				4326B91B055769E100E54CE6 /* PIC12F675_SUBWF.c in Sources */,
+				4326B91C055769E100E54CE6 /* PIC12F675_SWAPF.c in Sources */,
+				4326B91D055769E200E54CE6 /* PIC12F675_XORWF.c in Sources */,
+				4326B91E05576BD000E54CE6 /* PIC12F675_ADDWF.c in Sources */,
+				43E4920E055DF60A0039B704 /* cpuExecution.c in Sources */,
+				43C21D8E05603334005007E4 /* USB Pickit Interface.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		089C165CFE840E0CC02AAC07 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				089C165DFE840E0CC02AAC07 /* English */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		29B97318FDCFA39411CA2CEA /* MainMenu.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				29B97319FDCFA39411CA2CEA /* English */,
+			);
+			name = MainMenu.nib;
+			sourceTree = "<group>";
+		};
+		43D1410905624296006A6D55 /* ToDo.rtf */ = {
+			isa = PBXVariantGroup;
+			children = (
+				F5327841029BAE3401A27090 /* English */,
+			);
+			name = ToDo.rtf;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		2DF5F05108AB53DD00E26BCC /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Development;
+		};
+		2DF5F05208AB53DD00E26BCC /* Deployment */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Deployment;
+		};
+		2DF5F05308AB53DD00E26BCC /* Default */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Default;
+		};
+		2DF5F05508AB53DD00E26BCC /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Development;
+		};
+		2DF5F05608AB53DD00E26BCC /* Deployment */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Deployment;
+		};
+		2DF5F05708AB53DD00E26BCC /* Default */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Default;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2DF5F05008AB53DD00E26BCC /* Build configuration list for PBXApplicationTarget "CocoaPic" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2DF5F05108AB53DD00E26BCC /* Development */,
+				2DF5F05208AB53DD00E26BCC /* Deployment */,
+				2DF5F05308AB53DD00E26BCC /* Default */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Default;
+		};
+		2DF5F05408AB53DD00E26BCC /* Build configuration list for PBXProject "CocoaPic" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2DF5F05508AB53DD00E26BCC /* Development */,
+				2DF5F05608AB53DD00E26BCC /* Deployment */,
+				2DF5F05708AB53DD00E26BCC /* Default */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Default;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 29B97313FDCFA39411CA2CEA /* Project object */;
+}

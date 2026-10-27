@@ -1,0 +1,12 @@
+
+
+ToDo
+
+add Status test to indirection,
+add f[0] == 0 test ti indirection
+add f[3] , status update ...
+
+check bank selection with indirection f[f[0] | _RP0]  , with runtine bank checking , mirrored
+
+add structure for f[3]
+add PC counter mapping ...
