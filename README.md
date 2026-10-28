@@ -46,7 +46,7 @@ program that does not say.
   Anything that changed since the machine last stopped is red, as in the old app.
 - **Run / Halt / Step / Reset** in the toolbar and the Debug menu (⌘R, ⌘., F7 or
   ⌘', ⇧⌘R; ⌘B toggles a breakpoint). *Real time* paces a run at 1 µs per cycle so
-  a blinking pin is visible; off, it runs as fast as it can (~190–280 MIPS on an
+  a blinking pin is visible; off, it runs as fast as it can (~280–440 MIPS on an
   M-series Mac).
 
 Programs open from Intel HEX (MPASM/XC8 output, including the config word and
