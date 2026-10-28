@@ -113,12 +113,23 @@ impl Pic {
 
     // ---- register file -------------------------------------------------
 
+    #[inline(always)]
     pub(super) fn peek12(&self, a: u8) -> u8 {
-        match a {
-            INDF => {
-                let f = self.regs[FSR as usize] & 0x1F;
-                if f == INDF { 0 } else { self.peek12(f) }
+        // INDF through FSR, which can name any register but INDF itself. Not
+        // by recursion, so that this inlines.
+        if a == INDF {
+            match self.regs[FSR as usize] & 0x1F {
+                INDF => 0,
+                f => self.peek12_direct(f),
             }
+        } else {
+            self.peek12_direct(a)
+        }
+    }
+
+    #[inline(always)]
+    fn peek12_direct(&self, a: u8) -> u8 {
+        match a {
             PCL => self.pc as u8,
             // FSR<7:5> are unimplemented and read as 1.
             FSR => self.regs[FSR as usize] | 0xE0,
@@ -130,6 +141,7 @@ impl Pic {
 
     /// A read with its side effect: reading GPIO sets the reference that
     /// wake-on-change compares against.
+    #[inline(always)]
     pub(super) fn read12(&mut self, a: u8) -> u8 {
         let v = self.peek12(a);
         if a == GPIO {
@@ -138,15 +150,23 @@ impl Pic {
         v
     }
 
+    #[inline(always)]
     pub(super) fn write12(&mut self, a: u8, v: u8) {
+        if a == INDF {
+            match self.regs[FSR as usize] & 0x1F {
+                INDF => {}
+                f => self.write12_direct(f, v),
+            }
+        } else {
+            self.write12_direct(a, v)
+        }
+    }
+
+    #[inline(always)]
+    fn write12_direct(&mut self, a: u8, v: u8) {
         let r = &mut self.regs;
         match a {
-            INDF => {
-                let f = r[FSR as usize] & 0x1F;
-                if f != INDF {
-                    self.write12(f, v);
-                }
-            }
+            INDF => {}
             TMR0 => {
                 r[TMR0 as usize] = v;
                 // A write clears an assigned prescaler and holds the count.
@@ -234,12 +254,18 @@ impl Pic {
         self.tick12(cycles)
     }
 
+    /// [`Pic::wdt_enabled`] without asking which core this is.
+    #[inline(always)]
+    fn wdt12(&self) -> bool {
+        self.config.0 & 0x04 != 0
+    }
+
     /// [`Pic::doze14`] for the 12C508: asleep, pass up to `room` cycles at
     /// once, short of a watchdog timeout. A pin change that wakes it would
     /// have done so on the step before.
     pub(super) fn doze12(&mut self, room: u64) -> bool {
         let mut cycles = room.min(u32::MAX as u64);
-        if self.wdt_enabled() {
+        if self.wdt12() {
             cycles = cycles.min(self.wdt_limit().saturating_sub(self.wdt + 1));
         }
         if cycles == 0 {
@@ -253,7 +279,7 @@ impl Pic {
     /// cannot fire in them, as on the 12F675 (see [`Pic::tick`]).
     #[inline(always)]
     fn tick12(&mut self, n: u32) -> u32 {
-        let wdt = self.wdt_enabled();
+        let wdt = self.wdt12();
         if wdt && self.wdt + n as u64 >= self.wdt_limit() {
             return self.tick12_cycles(n);
         }
@@ -328,7 +354,7 @@ impl Pic {
     /// The watchdog as on the 12F675, but a timeout is always a reset, in
     /// SLEEP or out of it.
     fn tick_wdt12(&mut self) {
-        if !self.wdt_enabled() {
+        if !self.wdt12() {
             return;
         }
         self.wdt += 1;

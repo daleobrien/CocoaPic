@@ -869,22 +869,27 @@ impl Pic {
         self.pins_settled = false;
         // The part is chosen once here, so each core's loop is its own code.
         match self.part.core() {
-            Core::Midrange => self.run_with::<ROM_WORDS>(budget, stop, Self::step14, Self::doze14),
-            Core::Baseline => {
-                self.run_with::<{ baseline::ROM_WORDS }>(budget, stop, Self::step12, Self::doze12)
-            }
+            Core::Midrange => self.run_with::<false, ROM_WORDS>(budget, stop),
+            Core::Baseline => self.run_with::<true, { baseline::ROM_WORDS }>(budget, stop),
         }
     }
 
-    /// The run loop, given the core's `step` and `doze`.
+    /// The run loop for one core: `BASE` as for [`Pic::exec`]. The core's
+    /// step is called directly, so it inlines into the loop.
     #[inline(always)]
-    fn run_with<const WORDS: usize>(
+    fn run_with<const BASE: bool, const WORDS: usize>(
         &mut self,
         budget: u64,
         stop: impl Fn() -> bool,
-        step: impl Fn(&mut Self) -> u32,
-        doze: impl Fn(&mut Self, u64) -> bool,
     ) -> Stop {
+        let step = |pic: &mut Self| if BASE { pic.step12() } else { pic.step14() };
+        let doze = |pic: &mut Self, room| {
+            if BASE {
+                pic.doze12(room)
+            } else {
+                pic.doze14(room)
+            }
+        };
         let end = self.cycles + budget;
         let mut steps = 0u32;
         // Breakpoints only change between runs; most runs have none to check.
