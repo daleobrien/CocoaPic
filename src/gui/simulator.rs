@@ -13,7 +13,7 @@
 
 use std::ops::Range;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -35,9 +35,12 @@ const MONO: &str = "Menlo";
 const FRAME: Duration = Duration::from_millis(33);
 /// Cycles a running thread executes per lock: small enough that the window's
 /// frame never waits long for the machine, large enough to amortise the lock.
-const CHUNK_FAST: u64 = 400_000;
+const CHUNK_FAST: u64 = 100_000;
 /// In real time the chunk is a millisecond of the part's time.
 const CHUNK_REAL: u64 = 1_000;
+/// How often the full-speed rate is re-measured, so the figure follows the
+/// machine rather than averaging the whole run.
+const SPEED_WINDOW: Duration = Duration::from_millis(500);
 
 /// A cell being edited, and what Enter commits it to.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -58,10 +61,17 @@ struct Running {
     done: Arc<Mutex<Option<Stop>>>,
     started: Instant,
     start_cycles: u64,
+    /// Where the current full-speed measuring window began.
+    window: (Instant, u64),
 }
 
 pub struct Simulator {
     pic: Arc<Mutex<Pic>>,
+    /// How many window-side callers are waiting for the lock. A running
+    /// thread stands aside while this is non-zero: a mutex is not fair, and a
+    /// thread that re-locks the moment it lets go would otherwise starve the
+    /// window for seconds.
+    waiting: Arc<AtomicUsize>,
     /// The copy this frame draws from.
     shown: Pic,
     /// The machine as it was when it last started moving — what "changed" is
@@ -71,7 +81,8 @@ pub struct Simulator {
     path: Option<PathBuf>,
     running: Option<Running>,
     real_time: bool,
-    /// Instructions per second of the last run, for the status line.
+    /// Instruction cycles per second of the current or last run: since it
+    /// began in real time, over the last [`SPEED_WINDOW`] at full speed.
     speed: Option<f64>,
     status: SharedString,
     selected: Option<u16>,
@@ -103,6 +114,7 @@ impl Simulator {
 
         let mut view = Simulator {
             pic: Arc::new(Mutex::new(Pic::new())),
+            waiting: Arc::new(AtomicUsize::new(0)),
             shown: Pic::new(),
             before: Pic::new(),
             ann: Annotations::default(),
@@ -127,7 +139,10 @@ impl Simulator {
     }
 
     fn machine(&self) -> std::sync::MutexGuard<'_, Pic> {
-        self.pic.lock().unwrap_or_else(|e| e.into_inner())
+        self.waiting.fetch_add(1, Ordering::AcqRel);
+        let guard = self.pic.lock().unwrap_or_else(|e| e.into_inner());
+        self.waiting.fetch_sub(1, Ordering::AcqRel);
+        guard
     }
 
     /// Take a fresh copy of the machine for drawing.
@@ -289,6 +304,7 @@ impl Simulator {
         let start_cycles = self.shown.cycles;
         {
             let pic = self.pic.clone();
+            let waiting = self.waiting.clone();
             let stop = stop.clone();
             let done = done.clone();
             let real_time = self.real_time;
@@ -307,6 +323,9 @@ impl Simulator {
                     if stop.load(Ordering::Relaxed) {
                         break Stop::Halted;
                     }
+                    while waiting.load(Ordering::Acquire) > 0 && !stop.load(Ordering::Relaxed) {
+                        std::thread::yield_now();
+                    }
                     if real_time {
                         let due = Duration::from_secs_f64(
                             (cycles - start_cycles) as f64 / pic::CYCLES_PER_SECOND as f64,
@@ -324,6 +343,7 @@ impl Simulator {
             done,
             started: Instant::now(),
             start_cycles,
+            window: (Instant::now(), start_cycles),
         });
         self.set_status("Running…");
 
@@ -350,11 +370,20 @@ impl Simulator {
             return false;
         };
         let finished = *run.done.lock().unwrap_or_else(|e| e.into_inner());
-        let elapsed = run.started.elapsed().as_secs_f64();
-        let start_cycles = run.start_cycles;
         self.refresh();
-        if elapsed > 0.2 {
-            self.speed = Some((self.shown.cycles - start_cycles) as f64 / elapsed);
+        let cycles = self.shown.cycles;
+        let run = self.running.as_mut().unwrap();
+        if self.real_time {
+            let elapsed = run.started.elapsed().as_secs_f64();
+            if elapsed > 0.2 {
+                self.speed = Some((cycles - run.start_cycles) as f64 / elapsed);
+            }
+        } else {
+            let (since, from) = run.window;
+            if since.elapsed() >= SPEED_WINDOW {
+                self.speed = Some((cycles - from) as f64 / since.elapsed().as_secs_f64());
+                run.window = (Instant::now(), cycles);
+            }
         }
         if let Some(reason) = finished {
             self.running = None;
@@ -400,6 +429,7 @@ impl Simulator {
         let was_running = self.running.is_some();
         self.halt(cx);
         self.real_time = !self.real_time;
+        self.speed = None;
         if was_running {
             self.run(cx);
         }
@@ -898,12 +928,18 @@ impl Simulator {
                 "Stack",
                 mono(stack_text.to_string(), false).into_any_element(),
             ))
-            .child(div().text_xs().text_color(theme::muted()).child(format!(
-                "{} cycles · {:.6} s at 4 MHz{}",
-                group_digits(pic.cycles),
-                secs,
-                if pic.sleeping { " · asleep" } else { "" }
-            )))
+            .child(div().text_xs().text_color(theme::muted()).child(
+                match (self.running.is_some(), self.speed) {
+                    (true, Some(cps)) => self.speed_text(cps),
+                    (true, None) => "measuring…".into(),
+                    (false, _) => format!(
+                        "{} cycles · {:.6} s at 4 MHz{}",
+                        group_digits(pic.cycles),
+                        secs,
+                        if pic.sleeping { " · asleep" } else { "" }
+                    ),
+                },
+            ))
     }
 
     fn pins_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -1128,11 +1164,23 @@ impl Simulator {
             .into_any_element()
     }
 
+    /// A run's speed, from instruction cycles per second: how close to the
+    /// part's 4 MHz in real time; at full speed, the clock it would take to
+    /// match and how many times real time that is.
+    fn speed_text(&self, cps: f64) -> String {
+        let ratio = cps / pic::CYCLES_PER_SECOND as f64;
+        if self.real_time {
+            format!("4 MHz · {:+.2}%", (ratio - 1.) * 100.)
+        } else {
+            format!("{:.0} MHz effective · {:.0}× real time", ratio * 4., ratio)
+        }
+    }
+
     fn status_bar(&self) -> impl IntoElement {
         let pic = &self.shown;
         let speed = match self.speed {
-            Some(ips) => format!(" · {:.1} MIPS", ips / 1e6),
-            None => String::new(),
+            Some(cps) if self.running.is_none() => format!(" · last run {}", self.speed_text(cps)),
+            _ => String::new(),
         };
         let file = self
             .path
