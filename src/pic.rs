@@ -848,9 +848,11 @@ impl Pic {
     ) -> Stop {
         let end = self.cycles + budget;
         let mut steps = 0u32;
+        // Breakpoints only change between runs; most runs have none to check.
+        let any_breakpoints = self.breakpoints.contains(&true);
         while self.cycles < end {
             if steps > 0 {
-                if self.breakpoints[self.pc as usize % WORDS] {
+                if any_breakpoints && self.breakpoints[self.pc as usize % WORDS] {
                     return Stop::Breakpoint(self.pc);
                 }
                 // A step has run since the pins last changed from outside,
