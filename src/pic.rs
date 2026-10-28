@@ -876,7 +876,9 @@ impl Pic {
         }
     }
 
-    /// The run loop, given the core's `step` and `doze`.
+    /// The run loop, given the core's `step` and `doze`. Breakpoints only
+    /// change between runs, and most runs have none, so the loop is built
+    /// twice: with the check and without it.
     #[inline(always)]
     fn run_with<const WORDS: usize>(
         &mut self,
@@ -885,13 +887,26 @@ impl Pic {
         step: impl Fn(&mut Self) -> u32,
         doze: impl Fn(&mut Self, u64) -> bool,
     ) -> Stop {
+        if self.breakpoints.contains(&true) {
+            self.run_loop::<WORDS, true>(budget, stop, step, doze)
+        } else {
+            self.run_loop::<WORDS, false>(budget, stop, step, doze)
+        }
+    }
+
+    #[inline(always)]
+    fn run_loop<const WORDS: usize, const BREAKPOINTS: bool>(
+        &mut self,
+        budget: u64,
+        stop: impl Fn() -> bool,
+        step: impl Fn(&mut Self) -> u32,
+        doze: impl Fn(&mut Self, u64) -> bool,
+    ) -> Stop {
         let end = self.cycles + budget;
         let mut steps = 0u32;
-        // Breakpoints only change between runs; most runs have none to check.
-        let any_breakpoints = self.breakpoints.contains(&true);
         while self.cycles < end {
             if steps > 0 {
-                if any_breakpoints && self.breakpoints[self.pc as usize % WORDS] {
+                if BREAKPOINTS && self.breakpoints[self.pc as usize % WORDS] {
                     return Stop::Breakpoint(self.pc);
                 }
                 // A step has run since the pins last changed from outside,
@@ -906,7 +921,7 @@ impl Pic {
                 return Stop::Halted;
             }
         }
-        if self.breakpoints[self.pc as usize % WORDS] {
+        if BREAKPOINTS && self.breakpoints[self.pc as usize % WORDS] {
             return Stop::Breakpoint(self.pc);
         }
         Stop::Budget
