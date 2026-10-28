@@ -469,7 +469,7 @@ impl Simulator {
         self.editor
             .update(cx, |input, cx| input.set_content(text, cx));
         let handle = self.editor.focus_handle(cx);
-        window.focus(&handle);
+        window.focus(&handle, cx);
         cx.notify();
     }
 
@@ -658,7 +658,7 @@ impl Simulator {
                             .collect::<Vec<_>>()
                     }),
                 )
-                .track_scroll(self.program_scroll.clone())
+                .track_scroll(&self.program_scroll)
                 .flex_1(),
             )
     }
@@ -1017,7 +1017,7 @@ impl Simulator {
                         range.map(|i| this.ram_row(i, cx)).collect::<Vec<_>>()
                     }),
                 )
-                .track_scroll(self.ram_scroll.clone())
+                .track_scroll(&self.ram_scroll)
                 .flex_1()
                 .bg(theme::bg()),
             )
@@ -1180,7 +1180,9 @@ fn window_focus_root(view: &Simulator, cx: &mut Context<Simulator>) {
     let handle = view.focus.clone();
     cx.defer(move |cx| {
         if let Some(window) = cx.active_window() {
-            window.update(cx, |_, window, _| window.focus(&handle)).ok();
+            window
+                .update(cx, |_, window, cx| window.focus(&handle, cx))
+                .ok();
         }
     });
 }
@@ -1346,7 +1348,7 @@ mod tests {
 
     fn draw(view: &Entity<Simulator>, cx: &mut gpui::VisualTestContext) {
         cx.draw(point(px(0.), px(0.)), size(px(1240.), px(820.)), |_, _| {
-            view.clone()
+            view.clone().into_any_element()
         });
     }
 

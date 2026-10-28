@@ -52,6 +52,11 @@ actions!(
     ]
 );
 
+/// The hook run when Enter commits the field.
+type SubmitHandler = Box<dyn Fn(&mut Window, &mut Context<TextInput>)>;
+/// The hook run after each edit to the field's content.
+type ChangeHandler = Box<dyn Fn(&mut Context<TextInput>)>;
+
 /// An editable field: one line of text, or several once wrapped.
 pub struct TextInput {
     focus_handle: FocusHandle,
@@ -76,8 +81,8 @@ pub struct TextInput {
     /// the one way to wrap without letting the text's intrinsic width push the
     /// field — and the column around it — wider than the space it is given.
     wrapped: Option<(Pixels, Pixels)>,
-    on_submit: Option<Box<dyn Fn(&mut Window, &mut Context<TextInput>)>>,
-    on_change: Option<Box<dyn Fn(&mut Context<TextInput>)>>,
+    on_submit: Option<SubmitHandler>,
+    on_change: Option<ChangeHandler>,
 }
 
 impl TextInput {
@@ -744,7 +749,7 @@ impl Element for TextElement {
         }
 
         self.input.update(cx, |input, _cx| {
-            input.last_layout = prepaint.lines.first().cloned();
+            input.last_layout = prepaint.lines.drain(..).next();
             input.last_bounds = Some(bounds);
             input.last_line_height = prepaint.line_height;
         });

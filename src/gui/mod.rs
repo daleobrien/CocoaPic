@@ -24,7 +24,7 @@ pub fn run(file: Option<PathBuf>) -> Result<()> {
     gpui_platform::application().run(move |cx| {
         theme::set(cx.window_appearance());
 
-        cx.on_window_closed(|cx| {
+        cx.on_window_closed(|cx, _| {
             if cx.windows().is_empty() {
                 cx.quit();
             }
@@ -56,7 +56,7 @@ pub fn run(file: Option<PathBuf>) -> Result<()> {
         let opened = cx.open_window(options, |window, cx| {
             let sim = cx.new(|cx| Simulator::new(file, cx));
             let handle = sim.read(cx).focus_handle_of();
-            window.focus(&handle);
+            window.focus(&handle, cx);
             view = Some(sim.clone());
             sim
         });
@@ -105,7 +105,7 @@ fn bind<A: Action>(
 ) {
     let weak = sim.downgrade();
     cx.on_action(move |_: &A, cx| {
-        weak.update(cx, &f).ok();
+        weak.update(cx, f).ok();
     });
 }
 
@@ -114,6 +114,7 @@ fn menus() -> Vec<Menu> {
         Menu {
             name: "CocoaPic".into(),
             items: vec![MenuItem::action("Quit CocoaPic", Quit)],
+            disabled: false,
         },
         Menu {
             name: "File".into(),
@@ -126,6 +127,7 @@ fn menus() -> Vec<Menu> {
                 MenuItem::separator(),
                 MenuItem::action("Close Window", CloseWindow),
             ],
+            disabled: false,
         },
         Menu {
             name: "Debug".into(),
@@ -140,6 +142,7 @@ fn menus() -> Vec<Menu> {
                 MenuItem::action("Toggle Breakpoint", ToggleBreakpoint),
                 MenuItem::action("Clear All Breakpoints", ClearBreakpoints),
             ],
+            disabled: false,
         },
     ]
 }
