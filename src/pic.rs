@@ -934,14 +934,6 @@ impl Pic {
         budget: u64,
         stop: impl Fn() -> bool,
     ) -> Stop {
-        let step = |pic: &mut Self| if BASE { pic.step12() } else { pic.step14() };
-        let doze = |pic: &mut Self, room| {
-            if BASE {
-                pic.doze12(room)
-            } else {
-                pic.doze14(room)
-            }
-        };
         let end = self.cycles + budget;
         let mut steps = 0u32;
         // Breakpoints only change between runs; most runs have none to check.
@@ -953,12 +945,23 @@ impl Pic {
                 }
                 // A step has run since the pins last changed from outside,
                 // so asleep the part can skip ahead to whatever wakes it.
-                if self.sleeping && doze(self, end - self.cycles) {
+                let room = end - self.cycles;
+                if self.sleeping
+                    && if BASE {
+                        self.doze12(room)
+                    } else {
+                        self.doze14(room)
+                    }
+                {
                     continue;
                 }
             }
             steps = steps.wrapping_add(1);
-            step(self);
+            if BASE {
+                self.step12();
+            } else {
+                self.step14();
+            }
             if steps & 0xFFF == 0 && stop() {
                 return Stop::Halted;
             }
