@@ -10,6 +10,7 @@ mod widgets;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use cocoapic::pic::Part;
 use gpui::{
     Action, App, AppContext as _, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
     WindowBounds, WindowOptions, point, px, size,
@@ -19,8 +20,9 @@ use self::actions::*;
 use self::simulator::Simulator;
 use self::widgets::text_input as ti;
 
-/// Open the window and run until it closes.
-pub fn run(file: Option<PathBuf>) -> Result<()> {
+/// Open the window and run until it closes. `part` is the one the window
+/// starts as, unless the file says otherwise.
+pub fn run(file: Option<PathBuf>, part: Part) -> Result<()> {
     gpui_platform::application().run(move |cx| {
         theme::set(cx.window_appearance());
 
@@ -54,7 +56,7 @@ pub fn run(file: Option<PathBuf>) -> Result<()> {
 
         let mut view: Option<Entity<Simulator>> = None;
         let opened = cx.open_window(options, |window, cx| {
-            let sim = cx.new(|cx| Simulator::new(file, cx));
+            let sim = cx.new(|cx| Simulator::new(file, part, cx));
             let handle = sim.read(cx).focus_handle_of();
             window.focus(&handle, cx);
             view = Some(sim.clone());

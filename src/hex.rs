@@ -1,16 +1,29 @@
-//! Intel HEX, as MPASM and XC8 write it for a 14-bit part (INHX8M / INHX32).
+//! Intel HEX, as MPASM and XC8 write it (INHX8M / INHX32).
 //!
 //! Addresses in the file are byte addresses, two per program word, little
-//! endian. Program memory is 0x0000..0x07FF, the configuration word is at
-//! word 0x2007 (byte 0x400E), and data EEPROM at word 0x2100 (byte 0x4200)
-//! holds one EEPROM byte in the low half of each word.
+//! endian. On the PIC12F675 program memory is 0x0000..0x07FF, the
+//! configuration word is at word 0x2007 (byte 0x400E), and data EEPROM at
+//! word 0x2100 (byte 0x4200) holds one EEPROM byte in the low half of each
+//! word. On the PIC12C508 program memory is 0x0000..0x03FF and the
+//! configuration word is at word 0xFFF (byte 0x1FFE).
+//!
+//! A hex file does not say which part it is for: it loads into the part the
+//! [`Pic`] already is.
 
 use anyhow::{Context, Result, bail};
 
-use crate::pic::{Config, EEPROM_BYTES, Pic, ROM_WORDS};
+use crate::isa::Core;
+use crate::pic::{Config, EEPROM_BYTES, Pic};
 
-const CONFIG_WORD: u32 = 0x2007;
 const EEPROM_WORD: u32 = 0x2100;
+
+/// Where the configuration word lives.
+fn config_word(core: Core) -> u32 {
+    match core {
+        Core::Midrange => 0x2007,
+        Core::Baseline => 0xFFF,
+    }
+}
 
 /// Load a hex image into the part. Program words absent from the file are left
 /// erased; the configuration word and EEPROM keep their defaults if absent.
@@ -55,26 +68,32 @@ pub fn load(pic: &mut Pic, text: &str) -> Result<()> {
     }
 
     pic.erase();
-    pic.config = Config::DEFAULT;
+    pic.config = pic.part.default_config();
     pic.eeprom = [0xFF; EEPROM_BYTES];
+    let core = pic.part.core();
+    let config_word = config_word(core);
+    let high_bits = (core.word_mask() >> 8) as u8;
     for (addr, b) in bytes {
         let word = addr / 2;
         let high = addr & 1 == 1;
         let set = |w: &mut u16| {
             *w = if high {
-                (*w & 0x00FF) | ((b as u16 & 0x3F) << 8)
+                (*w & 0x00FF) | ((b & high_bits) as u16) << 8
             } else {
                 (*w & 0xFF00) | b as u16
             }
         };
         match word {
-            w if (w as usize) < ROM_WORDS => set(&mut pic.rom[w as usize]),
-            CONFIG_WORD => {
+            w if (w as usize) < pic.rom.len() => set(&mut pic.rom[w as usize]),
+            w if w == config_word => {
                 let mut c = pic.config.0;
                 set(&mut c);
                 pic.config = Config(c);
             }
-            w if (EEPROM_WORD..EEPROM_WORD + EEPROM_BYTES as u32).contains(&w) && !high => {
+            w if core == Core::Midrange
+                && (EEPROM_WORD..EEPROM_WORD + EEPROM_BYTES as u32).contains(&w)
+                && !high =>
+            {
                 pic.eeprom[(w - EEPROM_WORD) as usize] = b;
             }
             _ => {}
@@ -90,7 +109,7 @@ pub fn save(pic: &Pic) -> String {
     let used = pic
         .rom
         .iter()
-        .rposition(|w| *w != crate::pic::ERASED)
+        .rposition(|w| *w != pic.part.erased())
         .map_or(0, |i| i + 1);
     let mut prog = Vec::new();
     for w in &pic.rom[..used] {
@@ -117,7 +136,7 @@ pub fn save(pic: &Pic) -> String {
     record(
         &mut out,
         0x00,
-        (CONFIG_WORD * 2) as u16,
+        (config_word(pic.part.core()) * 2) as u16,
         &pic.config.0.to_le_bytes(),
     );
     record(&mut out, 0x01, 0, &[]);
@@ -169,5 +188,25 @@ mod tests {
         load(&mut pic, text).unwrap();
         assert_eq!(&pic.rom[..3], &[0x3007, 0x0099, 0x2802]);
         assert_eq!(pic.config, Config(0x3F84));
+    }
+
+    #[test]
+    fn round_trips_a_12c508() {
+        use crate::pic::Part;
+        let mut pic = Pic::with_part(Part::Pic12C508);
+        pic.rom[0] = 0x025;
+        pic.rom[1] = 0xC3E;
+        pic.rom[2] = 0x006;
+        pic.config = Config(0xFEE);
+        let text = save(&pic);
+        assert!(
+            text.contains(":021FFE00EE0FE4"),
+            "config at word 0xFFF:\n{text}"
+        );
+        let mut back = Pic::with_part(Part::Pic12C508);
+        load(&mut back, &text).unwrap();
+        assert_eq!(back.rom, pic.rom);
+        assert_eq!(back.config, pic.config);
+        assert_eq!(back.rom[0x1FF], 0xC70, "the calibration word survives");
     }
 }

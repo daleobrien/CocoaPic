@@ -13,11 +13,14 @@ use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_mai
 const CYCLES: u64 = 1_000_000;
 
 /// The programs: the window's blink demo (a tight wait on T0IF), the counter
-/// (asleep, waiting on a pin), and a busy loop of mixed instructions.
+/// (asleep, waiting on a pin), and a busy loop of mixed instructions; then the
+/// PIC12C508's blink (a tight wait on TMR0) and counter.
 const PROGRAMS: &[(&str, &str)] = &[
     ("blink", "examples/blink.asm"),
     ("counter", "examples/counter.asm"),
     ("mixed", "benches/mixed.asm"),
+    ("blink_12c508", "examples/blink-12c508.asm"),
+    ("counter_12c508", "examples/counter-12c508.asm"),
 ];
 
 fn load(file: &str) -> Pic {
