@@ -355,6 +355,11 @@ pub struct Pic {
     gpio_latched: u8,
     /// The previous level of GP2, for the INT edge.
     int_level: bool,
+    /// Whether [`Pic::watch_pins`] has seen the pins as they are, so it has
+    /// nothing to do until something that sets their level changes: a write
+    /// to a register behind them, a GPIO read, a reset, or the outside world
+    /// between runs.
+    pins_settled: bool,
     /// The previous level of GP2, for counting T0CKI edges.
     t0ck_level: bool,
     /// Cycles left during which a TMR0 write holds the timer.
@@ -406,6 +411,7 @@ impl Pic {
             ee_unlock: 0,
             gpio_latched: 0,
             int_level: false,
+            pins_settled: false,
             t0ck_level: false,
             tmr0_hold: 0,
             // A word no program word is (they are at most 14 bits), so the
@@ -450,6 +456,7 @@ impl Pic {
         self.int_level = self.level14(2);
         self.t0ck_level = self.int_level;
         self.gpio_latched = self.gpio_pins();
+        self.pins_settled = false;
         self.tmr0_hold = 0;
         self.cycles = 0;
     }
@@ -574,6 +581,7 @@ impl Pic {
         let v = self.peek_reg(a);
         if a == GPIO {
             self.gpio_latched = v;
+            self.pins_settled = false;
         }
         v
     }
@@ -653,8 +661,18 @@ impl Pic {
                 }
                 self.tmr0_hold = 2;
             }
-            GPIO => self.regs[a as usize] = v & 0x37,
-            TRISIO => self.regs[a as usize] = v | 0x08,
+            GPIO => {
+                self.regs[a as usize] = v & 0x37;
+                self.pins_settled = false;
+            }
+            TRISIO => {
+                self.regs[a as usize] = v | 0x08;
+                self.pins_settled = false;
+            }
+            OPTION_REG | CMCON => {
+                self.regs[a as usize] = v;
+                self.pins_settled = false;
+            }
             PCLATH => self.regs[a as usize] = v & 0x1F,
             ADCON0 => {
                 let was = self.regs[a as usize];
@@ -672,10 +690,19 @@ impl Pic {
                 };
             }
             EECON1 => self.eecon1(v),
-            ANSEL => self.regs[a as usize] = v & 0x7F,
+            ANSEL => {
+                self.regs[a as usize] = v & 0x7F;
+                self.pins_settled = false;
+            }
             PCON => self.regs[a as usize] = v & 0x03,
-            WPU => self.regs[a as usize] = v & 0x37,
-            IOC => self.regs[a as usize] = v & 0x3F,
+            WPU => {
+                self.regs[a as usize] = v & 0x37;
+                self.pins_settled = false;
+            }
+            IOC => {
+                self.regs[a as usize] = v & 0x3F;
+                self.pins_settled = false;
+            }
             _ => self.regs[a as usize] = v,
         }
     }
@@ -749,6 +776,8 @@ impl Pic {
     /// Execute one instruction (or one cycle of sleep, or an interrupt
     /// vector), and return the instruction cycles it took.
     pub fn step(&mut self) -> u32 {
+        // The pins may have changed from outside since the last step.
+        self.pins_settled = false;
         match self.part.core() {
             Core::Midrange => self.step14(),
             Core::Baseline => self.step12(),
@@ -798,6 +827,7 @@ impl Pic {
     /// says so. A breakpoint at the PC on entry does not stop it: that is the
     /// one we are resuming from.
     pub fn run(&mut self, budget: u64, stop: impl Fn() -> bool) -> Stop {
+        self.pins_settled = false;
         // The part is chosen once here, so each core's loop is its own code.
         match self.part.core() {
             Core::Midrange => self.run_with::<ROM_WORDS>(budget, stop, Self::step14, Self::doze14),
@@ -1389,6 +1419,9 @@ impl Pic {
     /// interrupt-on-change.
     #[inline(always)]
     fn watch_pins(&mut self) {
+        if self.pins_settled {
+            return;
+        }
         let levels = self.levels14();
         let level = levels & 0x04 != 0;
         if level != self.int_level {
@@ -1399,9 +1432,13 @@ impl Pic {
             self.int_level = level;
         }
         let ioc = self.regs[IOC as usize];
-        if ioc != 0 && ((levels & !self.analog14()) ^ self.gpio_latched) & ioc != 0 {
+        let changed = ((levels & !self.analog14()) ^ self.gpio_latched) & ioc != 0;
+        if changed {
             self.regs[INTCON as usize] |= 1 << GPIF;
         }
+        // While a change stands, GPIF is set again every cycle, so software
+        // clearing it sees it come back.
+        self.pins_settled = !changed;
     }
 
     /// Drive a pin from outside, as a switch would.
@@ -1645,7 +1682,9 @@ mod tests {
             assert_eq!(fast.run(budget, || false), run_by_steps(&mut slow, budget));
             assert_eq!(state(&fast), state(&slow), "after chunk {chunk}");
             if chunk % 37 == 0 {
-                let (pin, high) = ((chunk % 6) as u8, chunk % 2 == 0);
+                // Each pin in turn, high on the first round and low on the next.
+                let k = chunk / 37;
+                let (pin, high) = ((k % 6) as u8, k / 6 % 2 == 0);
                 fast.drive(pin, high);
                 slow.drive(pin, high);
             }
@@ -1663,6 +1702,44 @@ mod tests {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
             assert_run_matches_stepping(&std::fs::read_to_string(path.join(file)).unwrap());
         }
+    }
+
+    #[test]
+    fn run_matches_stepping_as_pins_change_under_interrupt_flags() {
+        // GP2 flips between an output driving high and an input floating low,
+        // for the INT edge; GP3's change interrupt stands while GPIO goes
+        // unread, so GPIF comes back after each clear.
+        assert_run_matches_stepping(
+            " __config 0x3F94
+ movlw 7
+ movwf CMCON
+ bsf STATUS,RP0
+ clrf ANSEL
+ movlw 0x08
+ movwf IOC
+ bcf STATUS,RP0
+ movlw 0x04
+ movwf GPIO
+again bsf STATUS,RP0
+ movlw 0x3B
+ movwf TRISIO
+ bcf STATUS,RP0
+ incf 0x20,f
+ bsf STATUS,RP0
+ movlw 0x3F
+ movwf TRISIO
+ bcf STATUS,RP0
+ btfsc INTCON,1
+ incf 0x21,f
+ btfsc INTCON,0
+ incf 0x22,f
+ bcf INTCON,1
+ bcf INTCON,0
+ decfsz 0x23,f
+ goto again
+ movf GPIO,w
+ goto again",
+        );
     }
 
     #[test]
