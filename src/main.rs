@@ -1,5 +1,6 @@
-//! CocoaPic: a PIC12F675 simulator — the native macOS window, and a CLI over
-//! the same core for running and inspecting programs from a terminal.
+//! CocoaPic: a PIC12F675 and PIC12C508 simulator — the native macOS window,
+//! and a CLI over the same core for running and inspecting programs from a
+//! terminal.
 
 #[cfg(target_os = "macos")]
 mod gui;
@@ -9,14 +10,27 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use cocoapic::pic::Pic;
+use cocoapic::pic::{Part, Pic};
 use cocoapic::{isa, pic, project};
 
 #[derive(Parser)]
-#[command(name = "cocoapic", version, about = "PIC12F675 simulator")]
+#[command(
+    name = "cocoapic",
+    version,
+    about = "PIC12F675 and PIC12C508 simulator"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
+    /// The part, 12F675 or 12C508, for a program that does not say: a hex
+    /// file without its sidecar, source without a `processor` line, or the
+    /// window's demo.
+    #[arg(long, global = true, value_parser = parse_part, default_value = "12F675")]
+    part: Part,
+}
+
+fn parse_part(s: &str) -> Result<Part, String> {
+    Part::from_name(s).ok_or_else(|| format!("no part '{s}': try 12F675 or 12C508"))
 }
 
 #[derive(Subcommand)]
@@ -41,11 +55,12 @@ enum Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let part = cli.part;
     match cli.command {
-        None => gui(None),
-        Some(Command::Gui { file }) => gui(file),
+        None => gui(None, part),
+        Some(Command::Gui { file }) => gui(file, part),
         Some(Command::Run { file, cycles }) => {
-            let mut pic = Pic::new();
+            let mut pic = Pic::with_part(part);
             let ann = project::open(&file, &mut pic)?;
             let started = std::time::Instant::now();
             let stop = pic.run(cycles, &|| false);
@@ -57,7 +72,8 @@ fn main() -> Result<()> {
                 pic.cycles as f64 / secs / pic::CYCLES_PER_SECOND as f64
             );
             println!(
-                "PC 0x{:03X}  W 0x{:02X}  STATUS 0x{:02X}  stack {:?}",
+                "{}  PC 0x{:03X}  W 0x{:02X}  STATUS 0x{:02X}  stack {:?}",
+                pic.part.name(),
                 pic.pc,
                 pic.w,
                 pic.status(),
@@ -68,7 +84,7 @@ fn main() -> Result<()> {
                 print!("{}", if pic.pin_level(p) { '1' } else { '0' });
             }
             println!();
-            for a in 0x20..0x60u8 {
+            for a in pic.part.gprs() {
                 if let Some(n) = ann.names.registers.get(&a) {
                     println!("{n:>10} [0x{a:02X}] = 0x{:02X}", pic.peek(a));
                 }
@@ -76,14 +92,14 @@ fn main() -> Result<()> {
             Ok(())
         }
         Some(Command::Disasm { file }) => {
-            let mut pic = Pic::new();
+            let mut pic = Pic::with_part(part);
             let ann = project::open(&file, &mut pic)?;
-            let banks = isa::banks(&pic.rom);
+            let banks = isa::banks(&pic.rom, pic.part);
             for (addr, word) in pic.rom.iter().enumerate() {
-                if *word == pic::ERASED {
+                if *word == pic.part.erased() {
                     continue;
                 }
-                let (m, ops) = isa::disassemble(*word, &ann.names, banks[addr]);
+                let (m, ops) = isa::disassemble(*word, &ann.names, banks[addr], pic.part);
                 let label = ann.names.label(addr as u16).unwrap_or("");
                 let note = ann.notes.get(&(addr as u16)).map(|n| format!("; {n}"));
                 println!(
@@ -94,7 +110,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Some(Command::Asm { file, out }) => {
-            let mut pic = Pic::new();
+            let mut pic = Pic::with_part(part);
             let ann = project::assemble_source(&std::fs::read_to_string(&file)?, &mut pic)?;
             let out = out.unwrap_or_else(|| file.with_extension("hex"));
             let written = project::save(&out, &pic, &ann)?;
@@ -105,12 +121,12 @@ fn main() -> Result<()> {
 }
 
 #[cfg(target_os = "macos")]
-fn gui(file: Option<PathBuf>) -> Result<()> {
-    gui::run(file)
+fn gui(file: Option<PathBuf>, part: Part) -> Result<()> {
+    gui::run(file, part)
 }
 
 #[cfg(not(target_os = "macos"))]
-fn gui(_file: Option<PathBuf>) -> Result<()> {
+fn gui(_file: Option<PathBuf>, _part: Part) -> Result<()> {
     anyhow::bail!("the window is macOS only; use `run`, `disasm` or `asm`")
 }
 

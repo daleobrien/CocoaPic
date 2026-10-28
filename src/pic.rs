@@ -1,3 +1,7 @@
+//! The parts: the PIC12F675 here, and the PIC12C508's register file and
+//! peripherals in [`baseline`]. Both run the one [`Pic::exec`], compiled once
+//! per core, so the 12F675's loop carries no test for which part it is.
+//!
 //! The PIC12F675: register file, peripherals and the instruction cycle.
 //!
 //! The Objective-C version generated one C function per 14-bit opcode — all
@@ -14,7 +18,123 @@
 //! fed from per-channel values the UI sets. Not modelled: the comparator's
 //! output, the voltage reference, and instruction timing below one cycle.
 
-use crate::isa::{Op, decode};
+use serde::{Deserialize, Serialize};
+
+use crate::isa::{Core, Op, decode};
+
+pub mod baseline;
+
+/// The parts the simulator models.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Part {
+    /// The 14-bit midrange core: 1K words, 8-level stack, interrupts,
+    /// peripherals.
+    #[default]
+    #[serde(rename = "PIC12F675")]
+    Pic12F675,
+    /// The 12-bit baseline core: 512 words, 2-level stack, no interrupts,
+    /// TMR0 and GPIO only.
+    #[serde(rename = "PIC12C508")]
+    Pic12C508,
+}
+
+impl Part {
+    pub const ALL: [Part; 2] = [Part::Pic12F675, Part::Pic12C508];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Part::Pic12F675 => "PIC12F675",
+            Part::Pic12C508 => "PIC12C508",
+        }
+    }
+
+    /// A part by the name a source file or the command line gives it:
+    /// `PIC12C508`, `p12c508` or `12c508`, in any case.
+    pub fn from_name(name: &str) -> Option<Part> {
+        let up = name.trim().to_ascii_uppercase();
+        let bare = up
+            .strip_prefix("PIC")
+            .or_else(|| up.strip_prefix('P'))
+            .unwrap_or(&up);
+        Part::ALL
+            .into_iter()
+            .find(|p| p.name().strip_prefix("PIC") == Some(bare))
+    }
+
+    pub fn core(self) -> Core {
+        match self {
+            Part::Pic12F675 => Core::Midrange,
+            Part::Pic12C508 => Core::Baseline,
+        }
+    }
+
+    pub fn rom_words(self) -> usize {
+        match self.core() {
+            Core::Midrange => ROM_WORDS,
+            Core::Baseline => baseline::ROM_WORDS,
+        }
+    }
+
+    /// The erased state of a program word: all ones.
+    pub fn erased(self) -> u16 {
+        match self.core() {
+            Core::Midrange => ERASED,
+            Core::Baseline => baseline::ERASED,
+        }
+    }
+
+    /// The last program word as it leaves the factory: the oscillator
+    /// calibration, as a RETLW on the 12F675 and a MOVLW on the 12C508.
+    fn calibration(self) -> u16 {
+        match self.core() {
+            Core::Midrange => 0x3480,
+            Core::Baseline => baseline::CALIBRATION,
+        }
+    }
+
+    /// Internal oscillator, watchdog off, MCLR off.
+    pub fn default_config(self) -> Config {
+        match self.core() {
+            Core::Midrange => Config::DEFAULT,
+            Core::Baseline => baseline::DEFAULT_CONFIG,
+        }
+    }
+
+    /// The special function registers, by the address an instruction names
+    /// (bank-qualified on the 12F675).
+    pub fn sfrs(self) -> &'static [(u8, &'static str)] {
+        match self.core() {
+            Core::Midrange => SFRS,
+            Core::Baseline => baseline::SFRS,
+        }
+    }
+
+    pub fn sfr_name(self, addr: u8) -> Option<&'static str> {
+        match self.core() {
+            Core::Midrange => sfr_name(addr),
+            Core::Baseline => baseline::SFRS
+                .iter()
+                .find(|(a, _)| *a == addr)
+                .map(|(_, n)| *n),
+        }
+    }
+
+    /// The general-purpose RAM.
+    pub fn gprs(self) -> std::ops::RangeInclusive<u8> {
+        match self.core() {
+            Core::Midrange => 0x20..=0x5F,
+            Core::Baseline => baseline::GPRS,
+        }
+    }
+
+    /// STATUS bit names, bit 0 first; empty where a bit is unimplemented.
+    pub fn status_bits(self) -> [&'static str; 8] {
+        match self.core() {
+            Core::Midrange => ["C", "DC", "Z", "PD", "TO", "RP0", "RP1", "IRP"],
+            Core::Baseline => ["C", "DC", "Z", "PD", "TO", "PA0", "", "GPWUF"],
+        }
+    }
+}
 
 pub const ROM_WORDS: usize = 1024;
 pub const EEPROM_BYTES: usize = 128;
@@ -90,10 +210,6 @@ impl Config {
     /// Internal oscillator, GP4/GP5 as I/O, watchdog off, MCLR as GP3 — what a
     /// bench program usually wants.
     pub const DEFAULT: Config = Config(0x3F94);
-
-    pub fn wdt(self) -> bool {
-        self.0 & 0x08 != 0
-    }
 }
 
 /// The registers that exist in the part, by bank-qualified address. Anything
@@ -168,13 +284,17 @@ pub enum Stop {
 /// One whole microcontroller.
 #[derive(Clone)]
 pub struct Pic {
+    /// Which part this is. Set it through [`Pic::with_part`]: the program
+    /// memory and register file are laid out for it.
+    pub part: Part,
     pub rom: Vec<u16>,
     pub config: Config,
     pub eeprom: [u8; EEPROM_BYTES],
     pub breakpoints: Vec<bool>,
 
     /// The register file, indexed by canonical address. Only the cells
-    /// [`canonical`] can return are meaningful.
+    /// [`canonical`] can return are meaningful (on the 12C508, see
+    /// [`baseline`]).
     regs: [u8; 256],
     pub w: u8,
     /// The 13-bit program counter. Fetches wrap at 1K words.
@@ -221,15 +341,20 @@ impl Default for Pic {
 }
 
 impl Pic {
+    /// A PIC12F675.
     pub fn new() -> Self {
-        let mut rom = vec![ERASED; ROM_WORDS];
-        // The factory oscillator calibration: RETLW with the trim value.
-        rom[ROM_WORDS - 1] = 0x3480;
+        Self::with_part(Part::Pic12F675)
+    }
+
+    /// A part fresh from the factory: erased but for the oscillator
+    /// calibration, and just powered on.
+    pub fn with_part(part: Part) -> Self {
         let mut pic = Pic {
-            rom,
-            config: Config::DEFAULT,
+            part,
+            rom: Vec::new(),
+            config: part.default_config(),
             eeprom: [0xFF; EEPROM_BYTES],
-            breakpoints: vec![false; ROM_WORDS],
+            breakpoints: Vec::new(),
             regs: [0; 256],
             w: 0,
             pc: 0,
@@ -251,6 +376,7 @@ impl Pic {
             tmr0_hold: 0,
             cycles: 0,
         };
+        pic.erase();
         pic.reset();
         pic
     }
@@ -258,6 +384,13 @@ impl Pic {
     /// A power-on reset: registers to their datasheet POR values, the program,
     /// EEPROM, breakpoints and inputs left alone.
     pub fn reset(&mut self) {
+        match self.part.core() {
+            Core::Midrange => self.reset14(),
+            Core::Baseline => self.reset12(baseline::Cause::PowerOn),
+        }
+    }
+
+    fn reset14(&mut self) {
         self.regs = [0; 256];
         self.regs[STATUS as usize] = 0x18;
         self.regs[OPTION_REG as usize] = 0xFF;
@@ -277,18 +410,40 @@ impl Pic {
         self.tmr1_prescaler = 0;
         self.adc_busy = 0;
         self.ee_unlock = 0;
-        self.int_level = self.pin_level(2);
+        self.int_level = self.level14(2);
         self.t0ck_level = self.int_level;
         self.gpio_latched = self.gpio_pins();
         self.tmr0_hold = 0;
         self.cycles = 0;
     }
 
-    /// Clear the program to erased flash.
+    /// Clear the program to erased flash, all but the factory calibration in
+    /// the last word.
     pub fn erase(&mut self) {
-        self.rom = vec![ERASED; ROM_WORDS];
-        self.rom[ROM_WORDS - 1] = 0x3480;
-        self.breakpoints = vec![false; ROM_WORDS];
+        let words = self.part.rom_words();
+        self.rom = vec![self.part.erased(); words];
+        self.rom[words - 1] = self.part.calibration();
+        self.breakpoints = vec![false; words];
+    }
+
+    /// Whether the configuration word turns the watchdog on.
+    pub fn wdt_enabled(&self) -> bool {
+        match self.part.core() {
+            Core::Midrange => self.config.0 & 0x08 != 0,
+            Core::Baseline => self.config.0 & 0x04 != 0,
+        }
+    }
+
+    /// OPTION as last written. On the 12C508 only the OPTION instruction can
+    /// write it, and nothing can read it back.
+    pub fn option(&self) -> u8 {
+        self.regs[OPTION_REG as usize]
+    }
+
+    /// The GPIO direction latch: TRISIO, or on the 12C508 what the TRIS
+    /// instruction last wrote.
+    pub fn tris(&self) -> u8 {
+        self.regs[TRISIO as usize]
     }
 
     // ---- register file -------------------------------------------------
@@ -322,6 +477,13 @@ impl Pic {
     /// The level on one pin as the core sees it: the output latch if it is an
     /// output, the outside world (or its pull-up) if an input.
     pub fn pin_level(&self, pin: u8) -> bool {
+        match self.part.core() {
+            Core::Midrange => self.level14(pin),
+            Core::Baseline => self.level12(pin),
+        }
+    }
+
+    fn level14(&self, pin: u8) -> bool {
         let bit = 1 << pin;
         let tris = self.regs[TRISIO as usize];
         // GP3 is input-only.
@@ -337,6 +499,13 @@ impl Pic {
 
     /// Which pins are configured as analog inputs and so read as 0.
     pub fn analog_pins(&self) -> u8 {
+        match self.part.core() {
+            Core::Midrange => self.analog14(),
+            Core::Baseline => 0,
+        }
+    }
+
+    fn analog14(&self) -> u8 {
         let ansel = self.regs[ANSEL as usize];
         let mut mask = 0;
         for (an, gp) in [(0, 0), (1, 1), (2, 2), (3, 4)] {
@@ -355,25 +524,33 @@ impl Pic {
     fn gpio_pins(&self) -> u8 {
         let mut v = 0;
         for pin in 0..6 {
-            if self.pin_level(pin) {
+            if self.level14(pin) {
                 v |= 1 << pin;
             }
         }
-        v & !self.analog_pins() & 0x3F
+        v & !self.analog14() & 0x3F
     }
 
     /// Read a register by bank-qualified address, with the side effects a
     /// read has (GPIO latches the interrupt-on-change compare).
-    pub fn read(&mut self, addr: u8) -> u8 {
-        let v = self.peek(addr);
+    fn read14(&mut self, addr: u8) -> u8 {
+        let v = self.peek14(addr);
         if canonical(addr) == Some(GPIO) {
             self.gpio_latched = v;
         }
         v
     }
 
-    /// Read a register without side effects — for display.
+    /// Read a register without side effects — for display. The address is
+    /// bank-qualified on the 12F675 and 0x00..=0x1F on the 12C508.
     pub fn peek(&self, addr: u8) -> u8 {
+        match self.part.core() {
+            Core::Midrange => self.peek14(addr),
+            Core::Baseline => self.peek12(addr),
+        }
+    }
+
+    fn peek14(&self, addr: u8) -> u8 {
         let Some(a) = canonical(addr) else { return 0 };
         match a {
             INDF => {
@@ -381,7 +558,7 @@ impl Pic {
                 if canonical(fsr) == Some(INDF) {
                     0
                 } else {
-                    self.peek(fsr)
+                    self.peek14(fsr)
                 }
             }
             PCL => self.pc as u8,
@@ -392,13 +569,13 @@ impl Pic {
     }
 
     /// Write a register by bank-qualified address, as an instruction would.
-    pub fn write(&mut self, addr: u8, v: u8) {
+    fn write14(&mut self, addr: u8, v: u8) {
         let Some(a) = canonical(addr) else { return };
         match a {
             INDF => {
                 let fsr = self.regs[FSR as usize];
                 if canonical(fsr) != Some(INDF) {
-                    self.write(fsr, v);
+                    self.write14(fsr, v);
                 }
             }
             PCL => {
@@ -447,9 +624,15 @@ impl Pic {
     /// Poke a register from the UI. PCL and INDF behave as for an
     /// instruction; STATUS takes every bit, so /TO and /PD can be set too.
     pub fn poke(&mut self, addr: u8, v: u8) {
-        match canonical(addr) {
-            Some(STATUS) => self.regs[STATUS as usize] = v,
-            _ => self.write(addr, v),
+        match self.part.core() {
+            Core::Midrange => match canonical(addr) {
+                Some(STATUS) => self.regs[STATUS as usize] = v,
+                _ => self.write14(addr, v),
+            },
+            Core::Baseline => match addr {
+                STATUS => self.regs[STATUS as usize] = v,
+                _ => self.write12(addr, v),
+            },
         }
     }
 
@@ -487,6 +670,9 @@ impl Pic {
 
     /// The live stack, top first.
     pub fn stack_view(&self) -> Vec<u16> {
+        if self.part.core() == Core::Baseline {
+            return self.stack[..self.depth].to_vec();
+        }
         (1..=self.depth)
             .map(|i| self.stack[(self.sp + STACK_DEPTH - i) % STACK_DEPTH])
             .collect()
@@ -496,12 +682,19 @@ impl Pic {
 
     /// The instruction the PC points at.
     pub fn current(&self) -> u16 {
-        self.rom[self.pc as usize % ROM_WORDS]
+        self.rom[self.pc as usize % self.rom.len()]
     }
 
     /// Execute one instruction (or one cycle of sleep, or an interrupt
     /// vector), and return the instruction cycles it took.
     pub fn step(&mut self) -> u32 {
+        match self.part.core() {
+            Core::Midrange => self.step14(),
+            Core::Baseline => self.step12(),
+        }
+    }
+
+    fn step14(&mut self) -> u32 {
         if self.interrupt_pending() {
             if self.sleeping {
                 self.sleeping = false;
@@ -520,9 +713,9 @@ impl Pic {
             return self.tick(1);
         }
 
-        let word = self.current();
+        let word = self.rom[self.pc as usize % ROM_WORDS];
         self.pc = (self.pc + 1) & 0x1FFF;
-        let cycles = self.exec(decode(word));
+        let cycles = self.exec::<false>(decode(word));
         self.tick(cycles)
     }
 
@@ -530,19 +723,33 @@ impl Pic {
     /// says so. A breakpoint at the PC on entry does not stop it: that is the
     /// one we are resuming from.
     pub fn run(&mut self, budget: u64, stop: &dyn Fn() -> bool) -> Stop {
+        // The part is chosen once here, so each core's loop is its own code.
+        match self.part.core() {
+            Core::Midrange => self.run_with::<ROM_WORDS>(budget, stop, Self::step14),
+            Core::Baseline => self.run_with::<{ baseline::ROM_WORDS }>(budget, stop, Self::step12),
+        }
+    }
+
+    #[inline(always)]
+    fn run_with<const WORDS: usize>(
+        &mut self,
+        budget: u64,
+        stop: &dyn Fn() -> bool,
+        step: impl Fn(&mut Self) -> u32,
+    ) -> Stop {
         let end = self.cycles + budget;
         let mut steps = 0u32;
         while self.cycles < end {
-            if steps > 0 && self.breakpoints[self.pc as usize % ROM_WORDS] {
+            if steps > 0 && self.breakpoints[self.pc as usize % WORDS] {
                 return Stop::Breakpoint(self.pc);
             }
             steps = steps.wrapping_add(1);
-            self.step();
+            step(self);
             if steps & 0xFFF == 0 && stop() {
                 return Stop::Halted;
             }
         }
-        if self.breakpoints[self.pc as usize % ROM_WORDS] {
+        if self.breakpoints[self.pc as usize % WORDS] {
             return Stop::Breakpoint(self.pc);
         }
         Stop::Budget
@@ -558,15 +765,17 @@ impl Pic {
     }
 
     /// Execute a decoded instruction whose PC has already been advanced, and
-    /// return its cycle count.
-    fn exec(&mut self, op: Op) -> u32 {
+    /// return its cycle count. `BASE` picks the core: false for the 12F675's
+    /// midrange, true for the 12C508's baseline. It is a constant, so each
+    /// core gets its own copy of this with the other's paths compiled out.
+    fn exec<const BASE: bool>(&mut self, op: Op) -> u32 {
         use Op::*;
         match op {
             Nop => 1,
             Movwf(f) => {
-                let a = self.direct(f);
-                self.write(a, self.w);
-                self.pcl_cycles(a)
+                let a = self.file::<BASE>(f);
+                self.wr::<BASE>(a, self.w);
+                self.pcl_cycles::<BASE>(a)
             }
             Clrw => {
                 self.w = 0;
@@ -574,12 +783,12 @@ impl Pic {
                 1
             }
             Clrf(f) => {
-                let a = self.direct(f);
-                self.write(a, 0);
+                let a = self.file::<BASE>(f);
+                self.wr::<BASE>(a, 0);
                 self.set_flag(Z, true);
-                self.pcl_cycles(a)
+                self.pcl_cycles::<BASE>(a)
             }
-            Subwf(f, d) => self.alu(f, d, |pic, x| {
+            Subwf(f, d) => self.alu::<BASE>(f, d, |pic, x| {
                 let w = pic.w;
                 let r = x.wrapping_sub(w);
                 pic.set_flag(C, x >= w);
@@ -587,7 +796,7 @@ impl Pic {
                 pic.set_flag(Z, r == 0);
                 r
             }),
-            Addwf(f, d) => self.alu(f, d, |pic, x| {
+            Addwf(f, d) => self.alu::<BASE>(f, d, |pic, x| {
                 let w = pic.w;
                 let (r, carry) = x.overflowing_add(w);
                 pic.set_flag(C, carry);
@@ -595,85 +804,96 @@ impl Pic {
                 pic.set_flag(Z, r == 0);
                 r
             }),
-            Decf(f, d) => self.alu(f, d, |pic, x| pic.zero(x.wrapping_sub(1))),
-            Iorwf(f, d) => self.alu(f, d, |pic, x| pic.zero(x | pic.w)),
-            Andwf(f, d) => self.alu(f, d, |pic, x| pic.zero(x & pic.w)),
-            Xorwf(f, d) => self.alu(f, d, |pic, x| pic.zero(x ^ pic.w)),
-            Movf(f, d) => self.alu(f, d, |pic, x| pic.zero(x)),
-            Comf(f, d) => self.alu(f, d, |pic, x| pic.zero(!x)),
-            Incf(f, d) => self.alu(f, d, |pic, x| pic.zero(x.wrapping_add(1))),
-            Rrf(f, d) => self.alu(f, d, |pic, x| {
+            Decf(f, d) => self.alu::<BASE>(f, d, |pic, x| pic.zero(x.wrapping_sub(1))),
+            Iorwf(f, d) => self.alu::<BASE>(f, d, |pic, x| pic.zero(x | pic.w)),
+            Andwf(f, d) => self.alu::<BASE>(f, d, |pic, x| pic.zero(x & pic.w)),
+            Xorwf(f, d) => self.alu::<BASE>(f, d, |pic, x| pic.zero(x ^ pic.w)),
+            Movf(f, d) => self.alu::<BASE>(f, d, |pic, x| pic.zero(x)),
+            Comf(f, d) => self.alu::<BASE>(f, d, |pic, x| pic.zero(!x)),
+            Incf(f, d) => self.alu::<BASE>(f, d, |pic, x| pic.zero(x.wrapping_add(1))),
+            Rrf(f, d) => self.alu::<BASE>(f, d, |pic, x| {
                 let c = pic.flag(C) as u8;
                 pic.set_flag(C, x & 1 != 0);
                 (x >> 1) | (c << 7)
             }),
-            Rlf(f, d) => self.alu(f, d, |pic, x| {
+            Rlf(f, d) => self.alu::<BASE>(f, d, |pic, x| {
                 let c = pic.flag(C) as u8;
                 pic.set_flag(C, x & 0x80 != 0);
                 (x << 1) | c
             }),
-            Swapf(f, d) => self.alu(f, d, |_, x| x.rotate_left(4)),
+            Swapf(f, d) => self.alu::<BASE>(f, d, |_, x| x.rotate_left(4)),
             Decfsz(f, d) => {
                 let mut zero = false;
-                let c = self.alu(f, d, |_, x| {
+                let c = self.alu::<BASE>(f, d, |_, x| {
                     let r = x.wrapping_sub(1);
                     zero = r == 0;
                     r
                 });
-                c + self.skip(zero)
+                c + self.skip::<BASE>(zero)
             }
             Incfsz(f, d) => {
                 let mut zero = false;
-                let c = self.alu(f, d, |_, x| {
+                let c = self.alu::<BASE>(f, d, |_, x| {
                     let r = x.wrapping_add(1);
                     zero = r == 0;
                     r
                 });
-                c + self.skip(zero)
+                c + self.skip::<BASE>(zero)
             }
             Bcf(f, b) => {
-                let a = self.direct(f);
-                let v = self.read(a) & !(1 << b);
-                self.write(a, v);
-                self.pcl_cycles(a)
+                let a = self.file::<BASE>(f);
+                let v = self.rd::<BASE>(a) & !(1 << b);
+                self.wr::<BASE>(a, v);
+                self.pcl_cycles::<BASE>(a)
             }
             Bsf(f, b) => {
-                let a = self.direct(f);
-                let v = self.read(a) | (1 << b);
-                self.write(a, v);
-                self.pcl_cycles(a)
+                let a = self.file::<BASE>(f);
+                let v = self.rd::<BASE>(a) | (1 << b);
+                self.wr::<BASE>(a, v);
+                self.pcl_cycles::<BASE>(a)
             }
             Btfsc(f, b) => {
-                let a = self.direct(f);
-                let clear = self.read(a) & (1 << b) == 0;
-                1 + self.skip(clear)
+                let a = self.file::<BASE>(f);
+                let clear = self.rd::<BASE>(a) & (1 << b) == 0;
+                1 + self.skip::<BASE>(clear)
             }
             Btfss(f, b) => {
-                let a = self.direct(f);
-                let set = self.read(a) & (1 << b) != 0;
-                1 + self.skip(set)
+                let a = self.file::<BASE>(f);
+                let set = self.rd::<BASE>(a) & (1 << b) != 0;
+                1 + self.skip::<BASE>(set)
             }
             Call(k) => {
-                self.push(self.pc);
-                self.pc = self.page(k);
+                if BASE {
+                    self.push12(self.pc);
+                    // CALL's 8-bit target clears PC<8>: subroutines start in
+                    // the first 256 words.
+                    self.pc = k & 0xFF;
+                } else {
+                    self.push(self.pc);
+                    self.pc = self.page(k);
+                }
                 2
             }
             Goto(k) => {
-                self.pc = self.page(k);
+                self.pc = if BASE {
+                    k & baseline::PC_MASK
+                } else {
+                    self.page(k)
+                };
                 2
             }
             Return => {
-                self.pc = self.pop();
+                self.pc = self.ret::<BASE>();
                 2
             }
             Retfie => {
-                self.pc = self.pop();
+                self.pc = self.ret::<BASE>();
                 self.regs[INTCON as usize] |= 1 << GIE;
                 2
             }
             Retlw(k) => {
                 self.w = k;
-                self.pc = self.pop();
+                self.pc = self.ret::<BASE>();
                 2
             }
             Movlw(k) => {
@@ -722,26 +942,74 @@ impl Pic {
                 self.sleeping = true;
                 1
             }
+            // Only the baseline decodes these. OPTION and TRIS live where the
+            // 12F675 keeps OPTION_REG and TRISIO; see `baseline`.
+            Option => {
+                self.regs[OPTION_REG as usize] = self.w;
+                1
+            }
+            Tris(f) => {
+                if f == baseline::GPIO {
+                    // GP3 is input-only.
+                    self.regs[TRISIO as usize] = self.w | 0x08;
+                }
+                1
+            }
+        }
+    }
+
+    /// The address an instruction's file operand names: bank-qualified on
+    /// the midrange, the 5-bit operand itself on the baseline.
+    #[inline(always)]
+    fn file<const BASE: bool>(&self, f: u8) -> u8 {
+        if BASE { f & 0x1F } else { self.direct(f) }
+    }
+
+    #[inline(always)]
+    fn rd<const BASE: bool>(&mut self, a: u8) -> u8 {
+        if BASE { self.read12(a) } else { self.read14(a) }
+    }
+
+    #[inline(always)]
+    fn wr<const BASE: bool>(&mut self, a: u8, v: u8) {
+        if BASE {
+            self.write12(a, v)
+        } else {
+            self.write14(a, v)
+        }
+    }
+
+    #[inline(always)]
+    fn is<const BASE: bool>(a: u8, reg: u8) -> bool {
+        if BASE {
+            a == reg
+        } else {
+            canonical(a) == Some(reg)
         }
     }
 
     /// A byte-oriented file instruction: read f, compute, and store the result
     /// in W (`d` false) or back in f.
-    fn alu(&mut self, f: u8, d: bool, op: impl FnOnce(&mut Self, u8) -> u8) -> u32 {
-        let a = self.direct(f);
-        let x = self.read(a);
+    fn alu<const BASE: bool>(
+        &mut self,
+        f: u8,
+        d: bool,
+        op: impl FnOnce(&mut Self, u8) -> u8,
+    ) -> u32 {
+        let a = self.file::<BASE>(f);
+        let x = self.rd::<BASE>(a);
         let r = op(self, x);
         if d {
-            if canonical(a) == Some(STATUS) {
+            if Self::is::<BASE>(a, STATUS) {
                 // The flags the instruction set win over the written value.
                 let flags = self.status() & 0x07;
-                self.write(a, r);
+                self.wr::<BASE>(a, r);
                 let s = &mut self.regs[STATUS as usize];
                 *s = (*s & !0x07) | flags;
             } else {
-                self.write(a, r);
+                self.wr::<BASE>(a, r);
             }
-            self.pcl_cycles(a)
+            self.pcl_cycles::<BASE>(a)
         } else {
             self.w = r;
             1
@@ -754,17 +1022,25 @@ impl Pic {
     }
 
     /// A write to PCL is a jump and costs the second cycle.
-    fn pcl_cycles(&self, a: u8) -> u32 {
-        if canonical(a) == Some(PCL) { 2 } else { 1 }
+    #[inline(always)]
+    fn pcl_cycles<const BASE: bool>(&self, a: u8) -> u32 {
+        if Self::is::<BASE>(a, PCL) { 2 } else { 1 }
     }
 
-    fn skip(&mut self, take: bool) -> u32 {
+    fn skip<const BASE: bool>(&mut self, take: bool) -> u32 {
         if take {
-            self.pc = (self.pc + 1) & 0x1FFF;
+            let mask = if BASE { baseline::PC_MASK } else { 0x1FFF };
+            self.pc = (self.pc + 1) & mask;
             1
         } else {
             0
         }
+    }
+
+    #[inline(always)]
+    /// The return address, from whichever stack the core has.
+    fn ret<const BASE: bool>(&mut self) -> u16 {
+        if BASE { self.pop12() } else { self.pop() }
     }
 
     /// GOTO/CALL take PCLATH<4:3> as the page bits above their 11-bit target.
@@ -806,7 +1082,7 @@ impl Pic {
             true
         } else {
             // T0CKI on GP2: T0SE picks the edge.
-            let level = self.pin_level(2);
+            let level = self.level14(2);
             let was = self.t0ck_level;
             self.t0ck_level = level;
             if option & 0x10 == 0 {
@@ -844,7 +1120,7 @@ impl Pic {
             return;
         }
         // TMR1GE: count only while /T1G (GP4) is low.
-        if t1con & 0x40 != 0 && self.pin_level(4) {
+        if t1con & 0x40 != 0 && self.level14(4) {
             return;
         }
         let rate = 1u8 << ((t1con >> 4) & 0x03);
@@ -864,7 +1140,7 @@ impl Pic {
     }
 
     fn tick_wdt(&mut self) {
-        if !self.config.wdt() {
+        if self.config.0 & 0x08 == 0 {
             return;
         }
         self.wdt += 1;
@@ -885,7 +1161,7 @@ impl Pic {
             self.set_flag(PD, false);
         } else {
             let cycles = self.cycles;
-            self.reset();
+            self.reset14();
             self.cycles = cycles;
             self.set_flag(TO, false);
         }
@@ -910,7 +1186,7 @@ impl Pic {
     /// The pin-driven interrupt flags: the INT edge on GP2 and
     /// interrupt-on-change.
     fn watch_pins(&mut self) {
-        let level = self.pin_level(2);
+        let level = self.level14(2);
         if level != self.int_level {
             let rising = self.regs[OPTION_REG as usize] & 0x40 != 0;
             if level == rising {
@@ -937,7 +1213,10 @@ impl Pic {
 
     /// Whether a pin is an output.
     pub fn is_output(&self, pin: u8) -> bool {
-        pin != 3 && self.regs[TRISIO as usize] & (1 << pin) == 0
+        match self.part.core() {
+            Core::Midrange => pin != 3 && self.regs[TRISIO as usize] & (1 << pin) == 0,
+            Core::Baseline => self.is_output12(pin),
+        }
     }
 
     /// The watchdog's progress toward a timeout, 0.0..1.0.
@@ -961,7 +1240,8 @@ mod tests {
         let mut pic = Pic::new();
         let names = crate::isa::Names::default();
         for (i, line) in src.iter().enumerate() {
-            pic.rom[i] = assemble(line, &names).unwrap_or_else(|e| panic!("{line}: {e}"));
+            pic.rom[i] =
+                assemble(line, &names, Part::Pic12F675).unwrap_or_else(|e| panic!("{line}: {e}"));
         }
         pic
     }

@@ -1,5 +1,9 @@
-//! The 14-bit midrange instruction set: decode, encode, and the one-line
-//! assembler and disassembler the program listing edits through.
+//! The instruction sets — the 14-bit midrange of the PIC12F675 and the 12-bit
+//! baseline of the PIC12C508 — decode, encode, and the one-line assembler and
+//! disassembler the program listing edits through.
+//!
+//! The two share mnemonics and semantics, so they share one [`Op`]; each core
+//! has its own encoding, and a few instructions exist on only one of them.
 //!
 //! The old app found an instruction for typed text by string-matching it
 //! against the mnemonic of every one of the 16,384 opcodes and keeping the
@@ -9,10 +13,46 @@
 
 use std::collections::BTreeMap;
 
-use crate::pic;
+use crate::pic::{self, Part};
 
-/// One decoded instruction. `f` is the 7-bit file address, `d` true means the
-/// result goes back to the file (`,f`), `b` is a bit number.
+/// Which instruction set: the program word's width and encoding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Core {
+    /// 14-bit words: the PIC12F675.
+    Midrange,
+    /// 12-bit words: the PIC12C508.
+    Baseline,
+}
+
+impl Core {
+    pub fn decode(self, w: u16) -> Op {
+        match self {
+            Core::Midrange => decode(w),
+            Core::Baseline => decode12(w),
+        }
+    }
+
+    /// The program word for an instruction, or `None` if this core has no
+    /// such instruction.
+    pub fn encode(self, op: Op) -> Option<u16> {
+        match self {
+            Core::Midrange => encode(op),
+            Core::Baseline => encode12(op),
+        }
+    }
+
+    /// The bits a program word has.
+    pub fn word_mask(self) -> u16 {
+        match self {
+            Core::Midrange => 0x3FFF,
+            Core::Baseline => 0x0FFF,
+        }
+    }
+}
+
+/// One decoded instruction. `f` is the file address (7 bits on the midrange,
+/// 5 on the baseline), `d` true means the result goes back to the file
+/// (`,f`), `b` is a bit number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Op {
     Addwf(u8, bool),
@@ -50,6 +90,10 @@ pub enum Op {
     Sleep,
     Sublw(u8),
     Xorlw(u8),
+    /// Baseline only: W to OPTION.
+    Option,
+    /// Baseline only: W to the direction latch of port `f` (GPIO).
+    Tris(u8),
 }
 
 /// What kind of operand an instruction takes — what the listing shows in its
@@ -100,8 +144,17 @@ const MNEMONICS: &[(&str, Shape)] = &[
     ("SLEEP", Shape::None),
     ("SUBLW", Shape::Literal),
     ("XORLW", Shape::Literal),
+    ("OPTION", Shape::None),
+    ("TRIS", Shape::File),
 ];
 
+/// Whether a word is an instruction mnemonic of either core.
+pub fn is_mnemonic(word: &str) -> bool {
+    let up = word.to_ascii_uppercase();
+    MNEMONICS.iter().any(|(m, _)| *m == up)
+}
+
+/// Decode a 14-bit midrange word.
 pub fn decode(w: u16) -> Op {
     use Op::*;
     let w = w & 0x3FFF;
@@ -169,11 +222,12 @@ pub fn decode(w: u16) -> Op {
     }
 }
 
-pub fn encode(op: Op) -> u16 {
+/// Encode a midrange instruction; `None` for the baseline's OPTION and TRIS.
+pub fn encode(op: Op) -> Option<u16> {
     use Op::*;
     let fd = |base: u16, f: u8, d: bool| base | ((d as u16) << 7) | (f as u16 & 0x7F);
     let fb = |base: u16, f: u8, b: u8| base | ((b as u16 & 7) << 7) | (f as u16 & 0x7F);
-    match op {
+    Some(match op {
         Nop => 0x0000,
         Return => 0x0008,
         Retfie => 0x0009,
@@ -209,7 +263,110 @@ pub fn encode(op: Op) -> u16 {
         Xorlw(k) => 0x3A00 | k as u16,
         Sublw(k) => 0x3C00 | k as u16,
         Addlw(k) => 0x3E00 | k as u16,
+        Option | Tris(_) => return None,
+    })
+}
+
+/// Decode a 12-bit baseline word.
+pub fn decode12(w: u16) -> Op {
+    use Op::*;
+    let w = w & 0x0FFF;
+    let f = (w & 0x1F) as u8;
+    let d = w & 0x20 != 0;
+    let b = ((w >> 5) & 0x07) as u8;
+    let k = (w & 0xFF) as u8;
+    // Bits 7:6 pick among the four byte-oriented instructions in each group.
+    let quad = (w >> 6) & 0x03;
+    match w >> 8 {
+        0x0 => match quad {
+            0 if d => Movwf(f),
+            0 => match w {
+                0x002 => Option,
+                0x003 => Sleep,
+                0x004 => Clrwdt,
+                0x005..=0x007 => Tris(f),
+                _ => Nop,
+            },
+            1 if d => Clrf(f),
+            1 => Clrw,
+            2 => Subwf(f, d),
+            _ => Decf(f, d),
+        },
+        0x1 => match quad {
+            0 => Iorwf(f, d),
+            1 => Andwf(f, d),
+            2 => Xorwf(f, d),
+            _ => Addwf(f, d),
+        },
+        0x2 => match quad {
+            0 => Movf(f, d),
+            1 => Comf(f, d),
+            2 => Incf(f, d),
+            _ => Decfsz(f, d),
+        },
+        0x3 => match quad {
+            0 => Rrf(f, d),
+            1 => Rlf(f, d),
+            2 => Swapf(f, d),
+            _ => Incfsz(f, d),
+        },
+        0x4 => Bcf(f, b),
+        0x5 => Bsf(f, b),
+        0x6 => Btfsc(f, b),
+        0x7 => Btfss(f, b),
+        0x8 => Retlw(k),
+        0x9 => Call(k as u16),
+        0xA | 0xB => Goto(w & 0x1FF),
+        0xC => Movlw(k),
+        0xD => Iorlw(k),
+        0xE => Andlw(k),
+        _ => Xorlw(k),
     }
+}
+
+/// Encode a baseline instruction; `None` for the midrange's ADDLW, SUBLW,
+/// RETURN and RETFIE, and for TRIS of a port that has no encoding.
+pub fn encode12(op: Op) -> Option<u16> {
+    use Op::*;
+    let fd = |base: u16, f: u8, d: bool| base | ((d as u16) << 5) | (f as u16 & 0x1F);
+    let fb = |base: u16, f: u8, b: u8| base | ((b as u16 & 7) << 5) | (f as u16 & 0x1F);
+    Some(match op {
+        Nop => 0x000,
+        Option => 0x002,
+        Sleep => 0x003,
+        Clrwdt => 0x004,
+        Tris(f @ 5..=7) => f as u16,
+        Tris(_) => return None,
+        Movwf(f) => 0x020 | (f as u16 & 0x1F),
+        Clrw => 0x040,
+        Clrf(f) => 0x060 | (f as u16 & 0x1F),
+        Subwf(f, d) => fd(0x080, f, d),
+        Decf(f, d) => fd(0x0C0, f, d),
+        Iorwf(f, d) => fd(0x100, f, d),
+        Andwf(f, d) => fd(0x140, f, d),
+        Xorwf(f, d) => fd(0x180, f, d),
+        Addwf(f, d) => fd(0x1C0, f, d),
+        Movf(f, d) => fd(0x200, f, d),
+        Comf(f, d) => fd(0x240, f, d),
+        Incf(f, d) => fd(0x280, f, d),
+        Decfsz(f, d) => fd(0x2C0, f, d),
+        Rrf(f, d) => fd(0x300, f, d),
+        Rlf(f, d) => fd(0x340, f, d),
+        Swapf(f, d) => fd(0x380, f, d),
+        Incfsz(f, d) => fd(0x3C0, f, d),
+        Bcf(f, b) => fb(0x400, f, b),
+        Bsf(f, b) => fb(0x500, f, b),
+        Btfsc(f, b) => fb(0x600, f, b),
+        Btfss(f, b) => fb(0x700, f, b),
+        Retlw(k) => 0x800 | k as u16,
+        Call(k) => 0x900 | (k & 0xFF),
+        Goto(k) => 0xA00 | (k & 0x1FF),
+        Movlw(k) => 0xC00 | k as u16,
+        Iorlw(k) => 0xD00 | k as u16,
+        Andlw(k) => 0xE00 | k as u16,
+        Xorlw(k) => 0xF00 | k as u16,
+        Addlw(_) | Sublw(_) | Return | Retfie => return None,
+    })
 }
 
 impl Op {
@@ -251,6 +408,8 @@ impl Op {
             Sleep => "SLEEP",
             Sublw(_) => "SUBLW",
             Xorlw(_) => "XORLW",
+            Option => "OPTION",
+            Tris(_) => "TRIS",
         }
     }
 }
@@ -265,13 +424,16 @@ pub struct Names {
 }
 
 impl Names {
-    /// The name shown for a 7-bit file operand in the given bank. A user name
-    /// wins; otherwise that bank's SFR name, or the other bank's where this
-    /// one has nothing there.
-    pub fn file(&self, f: u8, bank1: bool) -> Option<String> {
+    /// The name shown for a file operand in the given bank. A user name wins;
+    /// otherwise that bank's SFR name, or the other bank's where this one has
+    /// nothing there.
+    pub fn file(&self, f: u8, bank1: bool, part: Part) -> Option<String> {
         let f = f & 0x7F;
         if let Some(n) = self.registers.get(&f) {
             return Some(n.clone());
+        }
+        if part.core() == Core::Baseline {
+            return part.sfr_name(f).map(str::to_string);
         }
         let (this, other) = if bank1 { (f | 0x80, f) } else { (f, f | 0x80) };
         pic::sfr_name(this)
@@ -283,7 +445,7 @@ impl Names {
         self.labels.get(&addr).map(String::as_str)
     }
 
-    fn file_by_name(&self, name: &str) -> Option<u8> {
+    fn file_by_name(&self, name: &str, part: Part) -> Option<u8> {
         let up = name.to_ascii_uppercase();
         if let Some((a, _)) = self
             .registers
@@ -292,7 +454,7 @@ impl Names {
         {
             return Some(*a);
         }
-        pic::SFRS
+        part.sfrs()
             .iter()
             .find(|(_, n)| *n == up || (up == "OPTION" && *n == "OPTION_REG"))
             .map(|(a, _)| a & 0x7F)
@@ -317,6 +479,8 @@ const BITS: &[(&str, u8)] = &[
     ("NOT_TO", 4),
     ("TO", 4),
     ("RP0", 5),
+    ("PA0", 5),
+    ("GPWUF", 7),
     ("RP1", 6),
     ("IRP", 7),
     ("GPIF", 0),
@@ -369,12 +533,12 @@ const BITS: &[(&str, u8)] = &[
 ///
 /// `bank1` is the register bank the listing assumes is selected here — see
 /// [`banks`] — so `MOVWF 0x05` reads as TRISIO after a `BSF STATUS,RP0`.
-pub fn disassemble(word: u16, names: &Names, bank1: bool) -> (&'static str, String) {
+pub fn disassemble(word: u16, names: &Names, bank1: bool, part: Part) -> (&'static str, String) {
     use Op::*;
-    let op = decode(word);
+    let op = part.core().decode(word);
     let file = |f: u8| {
         names
-            .file(f, bank1)
+            .file(f, bank1, part)
             .unwrap_or_else(|| format!("0x{:02X}", f & 0x7F))
     };
     let dest = |d: bool| if d { "f" } else { "w" };
@@ -399,15 +563,15 @@ pub fn disassemble(word: u16, names: &Names, bank1: bool) -> (&'static str, Stri
         | Subwf(f, d)
         | Swapf(f, d)
         | Xorwf(f, d) => format!("{},{}", file(f), dest(d)),
-        Clrf(f) | Movwf(f) => file(f),
+        Clrf(f) | Movwf(f) | Tris(f) => file(f),
         Bcf(f, b) | Bsf(f, b) | Btfsc(f, b) | Btfss(f, b) => {
-            format!("{},{}", file(f), bit_name(f, b))
+            format!("{},{}", file(f), bit_name(f, b, part))
         }
         Addlw(k) | Andlw(k) | Iorlw(k) | Movlw(k) | Retlw(k) | Sublw(k) | Xorlw(k) => {
             format!("0x{k:02X}")
         }
         Call(k) | Goto(k) => addr(k),
-        Clrw | Nop | Clrwdt | Retfie | Return | Sleep => String::new(),
+        Clrw | Nop | Clrwdt | Retfie | Return | Sleep | Option => String::new(),
     };
     (op.mnemonic(), operands)
 }
@@ -416,7 +580,11 @@ pub fn disassemble(word: u16, names: &Names, bank1: bool) -> (&'static str, Stri
 /// program top to bottom and following `BSF/BCF STATUS,RP0`. It is a guess —
 /// a jump can arrive in either bank — but it is the guess a person reading the
 /// listing makes, and it names `TRISIO` and `OPTION_REG` where they are meant.
-pub fn banks(rom: &[u16]) -> Vec<bool> {
+/// The 12C508 has one bank.
+pub fn banks(rom: &[u16], part: Part) -> Vec<bool> {
+    if part.core() == Core::Baseline {
+        return vec![false; rom.len()];
+    }
     let mut bank1 = false;
     rom.iter()
         .map(|w| {
@@ -432,24 +600,25 @@ pub fn banks(rom: &[u16]) -> Vec<bool> {
 }
 
 /// A bit shown by name where the register has well-known ones.
-fn bit_name(f: u8, b: u8) -> String {
-    let names: &[&str] = match f & 0x7F {
-        0x03 => &["C", "DC", "Z", "PD", "TO", "RP0", "RP1", "IRP"],
-        0x0B => &[
+fn bit_name(f: u8, b: u8, part: Part) -> String {
+    let status = part.status_bits();
+    let names: &[&str] = match (part.core(), f & 0x7F) {
+        (_, 0x03) => &status,
+        (Core::Midrange, 0x0B) => &[
             "GPIF", "INTF", "T0IF", "GPIE", "INTE", "T0IE", "PEIE", "GIE",
         ],
         _ => &[],
     };
-    names
-        .get(b as usize)
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| b.to_string())
+    match names.get(b as usize) {
+        Some(n) if !n.is_empty() => n.to_string(),
+        _ => b.to_string(),
+    }
 }
 
 /// Assemble one line — `movlw 0x20`, `btfss STATUS,Z`, `goto loop` — into a
 /// program word. A `;` starts a comment. Numbers are decimal unless written
 /// `0x1F`, `1Fh`, `h'1F'`, `b'0101'`, `0b0101`, `d'10'` or `.10`.
-pub fn assemble(line: &str, names: &Names) -> Result<u16, String> {
+pub fn assemble(line: &str, names: &Names, part: Part) -> Result<u16, String> {
     use Op::*;
     let line = line.split(';').next().unwrap_or("").trim();
     if line.is_empty() {
@@ -478,12 +647,14 @@ pub fn assemble(line: &str, names: &Names) -> Result<u16, String> {
         return Err(format!("{mnem} takes {} operand(s)", want.end()));
     }
 
+    let core = part.core();
     let file = |s: &str| -> Result<u8, String> {
-        if let Some(a) = names.file_by_name(s) {
+        if let Some(a) = names.file_by_name(s, part) {
             return Ok(a);
         }
         let v = number(s).ok_or_else(|| format!("'{s}' is not a register"))?;
-        if v > 0xFF {
+        let top = if core == Core::Baseline { 0x1F } else { 0xFF };
+        if v > top {
             return Err(format!("register 0x{v:X} is out of range"));
         }
         Ok((v & 0x7F) as u8)
@@ -518,7 +689,7 @@ pub fn assemble(line: &str, names: &Names) -> Result<u16, String> {
             return Ok(a);
         }
         let v = number(s).ok_or_else(|| format!("no label '{s}'"))?;
-        if v as usize >= pic::ROM_WORDS {
+        if v as usize >= part.rom_words() {
             return Err(format!("address 0x{v:X} is past the end of program memory"));
         }
         Ok(v as u16)
@@ -560,9 +731,24 @@ pub fn assemble(line: &str, names: &Names) -> Result<u16, String> {
         "RETFIE" => Retfie,
         "RETURN" => Return,
         "SLEEP" => Sleep,
+        "OPTION" => Option,
+        "TRIS" => Tris(file(args[0])?),
         _ => unreachable!(),
     };
-    Ok(encode(op))
+    match op {
+        Call(k) if core == Core::Baseline && k > 0xFF => {
+            return Err(format!(
+                "CALL reaches only the first 256 words on the {}",
+                part.name()
+            ));
+        }
+        Tris(_) if core == Core::Baseline && encode12(op).is_none() => {
+            return Err("TRIS takes GPIO".into());
+        }
+        _ => {}
+    }
+    core.encode(op)
+        .ok_or_else(|| format!("the {} has no {mnem}", part.name()))
 }
 
 /// Parse a number in any of the radix notations the assembler accepts.
@@ -600,7 +786,7 @@ mod tests {
     fn every_opcode_survives_decode_then_encode() {
         for w in 0..0x4000u16 {
             let op = decode(w);
-            let back = encode(op);
+            let back = encode(op).unwrap();
             // Encodings with don't-care bits fold to their canonical form, which
             // must decode to the same instruction.
             assert_eq!(decode(back), op, "0x{w:04X}");
@@ -608,11 +794,69 @@ mod tests {
     }
 
     #[test]
+    fn every_baseline_opcode_survives_decode_then_encode() {
+        for w in 0..0x1000u16 {
+            let op = decode12(w);
+            let back = encode12(op).unwrap_or_else(|| panic!("0x{w:03X} {op:?}"));
+            assert_eq!(decode12(back), op, "0x{w:03X}");
+        }
+    }
+
+    #[test]
+    fn assembles_for_the_12c508() {
+        let mut names = Names::default();
+        names.labels.insert(0x10, "loop".into());
+        names.registers.insert(0x07, "count".into());
+        let a = |s| assemble(s, &names, Part::Pic12C508).unwrap();
+        // Encodings from the PIC12C5XX datasheet's instruction set summary.
+        assert_eq!(a("movlw 0x20"), 0xC20);
+        assert_eq!(a("movwf OSCCAL"), 0x025);
+        assert_eq!(a("option"), 0x002);
+        assert_eq!(a("tris GPIO"), 0x006);
+        assert_eq!(a("clrw"), 0x040);
+        assert_eq!(a("clrf count"), 0x067);
+        assert_eq!(a("decfsz count,f"), 0x2E7);
+        assert_eq!(a("movf count,w"), 0x207);
+        assert_eq!(a("btfss STATUS,Z"), 0x743);
+        assert_eq!(a("btfsc STATUS,GPWUF"), 0x6E3);
+        assert_eq!(a("goto loop"), 0xA10);
+        assert_eq!(a("goto 0x1FF"), 0xBFF);
+        assert_eq!(a("call loop"), 0x910);
+        assert_eq!(a("retlw 0x42"), 0x842);
+        assert_eq!(a("xorlw 0xFF"), 0xFFF);
+        assert_eq!(a("sleep"), 0x003);
+        assert_eq!(a("clrwdt"), 0x004);
+        let err = |s| assemble(s, &names, Part::Pic12C508).unwrap_err();
+        assert!(err("addlw 1").contains("no ADDLW"));
+        assert!(err("return").contains("no RETURN"));
+        assert!(err("movwf 0x20").contains("out of range"));
+        assert!(err("goto 0x200").contains("past the end"));
+        assert!(err("tris 3").contains("GPIO"));
+        // And the other way: the 12F675 has no OPTION or TRIS instruction.
+        assert!(assemble("option", &names, Part::Pic12F675).is_err());
+        assert!(assemble("tris GPIO", &names, Part::Pic12F675).is_err());
+    }
+
+    #[test]
+    fn disassembles_for_the_12c508() {
+        let names = Names::default();
+        let d = |w| disassemble(w, &names, false, Part::Pic12C508);
+        assert_eq!(d(0x006), ("TRIS", "GPIO".into()));
+        assert_eq!(d(0x002), ("OPTION", String::new()));
+        assert_eq!(d(0x025), ("MOVWF", "OSCCAL".into()));
+        assert_eq!(d(0x6E3), ("BTFSC", "STATUS,GPWUF".into()));
+        assert_eq!(d(0x5A3), ("BSF", "STATUS,PA0".into()));
+        // 0x0B is RAM here, not INTCON.
+        assert_eq!(d(0x44B), ("BCF", "0x0B,2".into()));
+        assert_eq!(d(0xFFF), ("XORLW", "0xFF".into()));
+    }
+
+    #[test]
     fn assembles_with_names_and_radixes() {
         let mut names = Names::default();
         names.labels.insert(0x10, "loop".into());
         names.registers.insert(0x20, "count".into());
-        let a = |s| assemble(s, &names).unwrap();
+        let a = |s| assemble(s, &names, Part::Pic12F675).unwrap();
         assert_eq!(a("movlw 0x20"), 0x3020);
         assert_eq!(a("MOVLW h'FF'"), 0x30FF);
         assert_eq!(a("movlw b'1010'"), 0x300A);
@@ -625,28 +869,37 @@ mod tests {
         assert_eq!(a("movwf TRISIO"), 0x0085);
         assert_eq!(a("goto loop"), 0x2810);
         assert_eq!(a("call 0x3FF ; osccal"), 0x23FF);
-        assert!(assemble("movlw 300", &names).is_err());
-        assert!(assemble("frob", &names).is_err());
+        assert!(assemble("movlw 300", &names, Part::Pic12F675).is_err());
+        assert!(assemble("frob", &names, Part::Pic12F675).is_err());
     }
 
     #[test]
     fn disassembly_uses_names() {
         let mut names = Names::default();
         names.labels.insert(0x10, "loop".into());
-        assert_eq!(disassemble(0x2810, &names, false), ("GOTO", "loop".into()));
         assert_eq!(
-            disassemble(0x1D03, &names, false),
+            disassemble(0x2810, &names, false, Part::Pic12F675),
+            ("GOTO", "loop".into())
+        );
+        assert_eq!(
+            disassemble(0x1D03, &names, false, Part::Pic12F675),
             ("BTFSS", "STATUS,Z".into())
         );
         assert_eq!(
-            disassemble(0x0BA0, &names, false),
+            disassemble(0x0BA0, &names, false, Part::Pic12F675),
             ("DECFSZ", "0x20,f".into())
         );
-        assert_eq!(disassemble(0x0085, &names, false), ("MOVWF", "GPIO".into()));
         assert_eq!(
-            disassemble(0x0085, &names, true),
+            disassemble(0x0085, &names, false, Part::Pic12F675),
+            ("MOVWF", "GPIO".into())
+        );
+        assert_eq!(
+            disassemble(0x0085, &names, true, Part::Pic12F675),
             ("MOVWF", "TRISIO".into())
         );
-        assert_eq!(disassemble(0x0095, &names, false), ("MOVWF", "WPU".into()));
+        assert_eq!(
+            disassemble(0x0095, &names, false, Part::Pic12F675),
+            ("MOVWF", "WPU".into())
+        );
     }
 }

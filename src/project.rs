@@ -5,8 +5,12 @@
 //! lives in a JSON sidecar beside it (`blink.hex` → `blink.cocoapic.json`),
 //! which opening the hex picks up again. A source file (`.asm`) can be
 //! opened too: [`assemble_source`] is a small two-pass assembler — labels,
-//! `equ`, `org`, `__config`, comments — enough for the listings the old app
-//! was used with, not a replacement for MPASM.
+//! `equ`, `org`, `__config`, `processor`, comments — enough for the listings
+//! the old app was used with, not a replacement for MPASM.
+//!
+//! Which part a program is for comes from the source's `processor` or
+//! `list p=` line, or the sidecar's `part`; failing those, it is the part the
+//! [`Pic`] already is.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -16,10 +20,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::hex;
 use crate::isa::{self, Names};
-use crate::pic::{Config, Pic, ROM_WORDS};
+use crate::pic::{Config, Part, Pic};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Annotations {
+    /// The part the program is for, so a hex file reopens as the right one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<Part>,
     #[serde(default)]
     pub names: Names,
     #[serde(default)]
@@ -30,7 +37,7 @@ pub struct Annotations {
 
 impl Annotations {
     pub fn apply_breakpoints(&self, pic: &mut Pic) {
-        pic.breakpoints = vec![false; ROM_WORDS];
+        pic.breakpoints = vec![false; pic.rom.len()];
         for &b in &self.breakpoints {
             if let Some(slot) = pic.breakpoints.get_mut(b as usize) {
                 *slot = true;
@@ -55,11 +62,17 @@ pub fn open(path: &Path, pic: &mut Pic) -> Result<Annotations> {
     let ann = if is_source {
         assemble_source(&text, pic)?
     } else {
-        hex::load(pic, &text)?;
-        match std::fs::read_to_string(sidecar(path)) {
+        let ann: Annotations = match std::fs::read_to_string(sidecar(path)) {
             Ok(json) => serde_json::from_str(&json).context("reading the sidecar")?,
             Err(_) => Annotations::default(),
+        };
+        if let Some(part) = ann.part
+            && part != pic.part
+        {
+            *pic = Pic::with_part(part);
         }
+        hex::load(pic, &text)?;
+        ann
     };
     ann.apply_breakpoints(pic);
     pic.reset();
@@ -72,6 +85,7 @@ pub fn save(path: &Path, pic: &Pic, ann: &Annotations) -> Result<PathBuf> {
     let path = path.with_extension("hex");
     std::fs::write(&path, hex::save(pic)).with_context(|| format!("writing {}", path.display()))?;
     let mut ann = ann.clone();
+    ann.part = Some(pic.part);
     ann.breakpoints = pic
         .breakpoints
         .iter()
@@ -90,6 +104,8 @@ pub fn assemble_source(src: &str, pic: &mut Pic) -> Result<Annotations> {
     let mut lines = Vec::new();
 
     // Pass 1: lay out addresses, collect labels and names.
+    let mut part = pic.part;
+    let mut config = None;
     let mut pc: u32 = 0;
     for (n, raw) in src.lines().enumerate() {
         let (code, comment) = match raw.find(';') {
@@ -137,11 +153,26 @@ pub fn assemble_source(src: &str, pic: &mut Pic) -> Result<Annotations> {
                     .get(1)
                     .and_then(|s| isa::number(s))
                     .with_context(|| format!("line {}: __config needs a value", n + 1))?;
-                pic.config = Config(v as u16 & 0x3FFF);
+                config = Some(v as u16);
             }
-            "list" | "include" | "#include" | "radix" | "processor" | "errorlevel" | "end" => {}
+            "processor" | "list" => {
+                // `processor 12c508`, or `list p=12c508, r=dec`.
+                let rest = words[1..].join(" ");
+                let name = if words[0].eq_ignore_ascii_case("processor") {
+                    Some(rest.as_str())
+                } else {
+                    rest.split(',')
+                        .map(str::trim)
+                        .find_map(|o| o.strip_prefix("p=").or_else(|| o.strip_prefix("P=")))
+                };
+                if let Some(name) = name {
+                    part = Part::from_name(name)
+                        .with_context(|| format!("line {}: no part '{name}' here", n + 1))?;
+                }
+            }
+            "include" | "#include" | "radix" | "errorlevel" | "end" => {}
             _ => {
-                if pc as usize >= ROM_WORDS {
+                if pc as usize >= part.rom_words() {
                     bail!("line {}: past the end of program memory", n + 1);
                 }
                 if !comment.is_empty() {
@@ -154,12 +185,19 @@ pub fn assemble_source(src: &str, pic: &mut Pic) -> Result<Annotations> {
     }
 
     // Pass 2: every label is known, so forward references resolve.
+    if part != pic.part {
+        *pic = Pic::with_part(part);
+    }
     pic.erase();
+    if let Some(v) = config {
+        pic.config = Config(v & part.core().word_mask());
+    }
     for (line, addr, text) in lines {
         let text = text.replace('$', &addr.to_string());
-        pic.rom[addr as usize] =
-            isa::assemble(&text, &ann.names).map_err(|e| anyhow::anyhow!("line {line}: {e}"))?;
+        pic.rom[addr as usize] = isa::assemble(&text, &ann.names, part)
+            .map_err(|e| anyhow::anyhow!("line {line}: {e}"))?;
     }
+    ann.part = Some(part);
     Ok(ann)
 }
 
@@ -176,9 +214,15 @@ fn is_keyword(word: &str) -> bool {
             | "processor"
             | "errorlevel"
             | "end"
-    ) || isa::assemble(&format!("{w} 0"), &Names::default()).is_ok()
-        || isa::assemble(&w, &Names::default()).is_ok()
-        || isa::assemble(&format!("{w} 0,0"), &Names::default()).is_ok()
+    ) || isa::is_mnemonic(&w)
+}
+
+/// The program the window opens with for a part.
+pub fn demo(part: Part) -> &'static str {
+    match part {
+        Part::Pic12F675 => DEMO,
+        Part::Pic12C508 => DEMO_12C508,
+    }
 }
 
 /// The program the window opens with: GP0 toggles each time TMR0 overflows,
@@ -208,6 +252,9 @@ loop    btfss INTCON,T0IF   ; wait for TMR0 to overflow
         goto loop
 ";
 
+/// The PIC12C508's demo, which is also `examples/blink-12c508.asm`.
+pub const DEMO_12C508: &str = include_str!("../examples/blink-12c508.asm");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,11 +268,69 @@ mod tests {
             ann.names.registers.get(&0x20).map(String::as_str),
             Some("count")
         );
-        assert!(!pic.config.wdt());
+        assert!(!pic.wdt_enabled());
         pic.reset();
         // 256 × 256 cycles per overflow; three overflows toggle GP0 three times.
         pic.run(3 * 65536 + 200, &|| false);
         assert_eq!(pic.peek(0x20), 3);
         assert!(pic.pin_level(0));
+    }
+
+    #[test]
+    fn the_12c508_demo_picks_its_part_and_blinks() {
+        // Opened into a 12F675, the `processor` line makes it a 12C508.
+        let mut pic = Pic::new();
+        let ann = assemble_source(DEMO_12C508, &mut pic).unwrap();
+        assert_eq!(pic.part, Part::Pic12C508);
+        assert_eq!(ann.part, Some(Part::Pic12C508));
+        assert_eq!(pic.rom.len(), 512);
+        assert_eq!(pic.config, Config(0xFEA));
+        assert_eq!(
+            ann.names.registers.get(&0x07).map(String::as_str),
+            Some("count")
+        );
+        pic.reset();
+        // TMR0 wraps every 256 × 256 cycles, as on the 12F675's demo.
+        pic.run(3 * 65536 + 200, &|| false);
+        assert_eq!(pic.peek(0x07), 3);
+        assert!(pic.is_output(0));
+        assert!(pic.pin_level(0));
+    }
+
+    #[test]
+    fn the_12c508_counter_wakes_on_gp3_and_counts() {
+        let src = include_str!("../examples/counter-12c508.asm");
+        let mut pic = Pic::new();
+        assemble_source(src, &mut pic).unwrap();
+        pic.reset();
+        pic.run(100, &|| false);
+        assert!(pic.sleeping);
+        assert_eq!(pic.peek(0x07), 0);
+        for presses in 1..=3u8 {
+            // Press (GP3 low) and release; each edge wakes it, the fall counts.
+            for level in [false, true] {
+                pic.drive(3, level);
+                pic.run(100, &|| false);
+                assert!(pic.sleeping);
+            }
+            assert_eq!(pic.peek(0x07), presses);
+            assert_eq!(pic.peek(crate::pic::baseline::GPIO) & 7, presses);
+        }
+    }
+
+    #[test]
+    fn the_part_travels_in_the_sidecar() {
+        let dir = std::env::temp_dir().join(format!("cocoapic-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut pic = Pic::new();
+        let ann = assemble_source(DEMO_12C508, &mut pic).unwrap();
+        let hex = save(&dir.join("blink.asm"), &pic, &ann).unwrap();
+        // Reopened into a 12F675, the sidecar turns it back into a 12C508.
+        let mut back = Pic::new();
+        let ann = open(&hex, &mut back).unwrap();
+        assert_eq!(back.part, Part::Pic12C508);
+        assert_eq!(back.rom, pic.rom);
+        assert_eq!(ann.names.label(7), Some("top"));
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

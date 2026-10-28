@@ -5,7 +5,8 @@
 //! or its label, the instruction, and a note — and is edited the same way:
 //! double-click a cell and type. The side panel replaces the register and RAM
 //! tables, and adds the pins, which the old app never showed. A value that has
-//! changed since the machine last stopped is drawn red, as it was there.
+//! changed since the machine last stopped is drawn red, as it was there. The
+//! toolbar picks the part; switching opens that part's demo.
 //!
 //! The machine lives behind a mutex so a run can go on a thread of its own:
 //! the window reads a copy of it each frame and never holds the lock across a
@@ -25,8 +26,8 @@ use gpui::{
 
 use crate::gui::theme;
 use crate::gui::widgets::text_input::TextInput;
-use cocoapic::isa;
-use cocoapic::pic::{self, Pic, Stop};
+use cocoapic::isa::{self, Core};
+use cocoapic::pic::{self, Part, Pic, Stop};
 use cocoapic::project::{self, Annotations};
 
 const ROW: f32 = 20.;
@@ -95,8 +96,16 @@ pub struct Simulator {
     focus: FocusHandle,
 }
 
+/// The RAM panel's rows for a part.
+fn ram_rows(part: Part) -> Vec<u8> {
+    let mut rows: Vec<u8> = part.sfrs().iter().map(|(a, _)| *a).collect();
+    rows.sort_unstable();
+    rows.extend(part.gprs());
+    rows
+}
+
 impl Simulator {
-    pub fn new(file: Option<PathBuf>, cx: &mut Context<Self>) -> Self {
+    pub fn new(file: Option<PathBuf>, part: Part, cx: &mut Context<Self>) -> Self {
         let editor = {
             let this = cx.entity().downgrade();
             cx.new(move |cx| {
@@ -108,15 +117,11 @@ impl Simulator {
                 })
             })
         };
-        let mut ram_rows: Vec<u8> = pic::SFRS.iter().map(|(a, _)| *a).collect();
-        ram_rows.sort_unstable();
-        ram_rows.extend(0x20..=0x5F);
-
         let mut view = Simulator {
-            pic: Arc::new(Mutex::new(Pic::new())),
+            pic: Arc::new(Mutex::new(Pic::with_part(part))),
             waiting: Arc::new(AtomicUsize::new(0)),
-            shown: Pic::new(),
-            before: Pic::new(),
+            shown: Pic::with_part(part),
+            before: Pic::with_part(part),
             ann: Annotations::default(),
             path: None,
             running: None,
@@ -128,7 +133,7 @@ impl Simulator {
             editor,
             program_scroll: UniformListScrollHandle::new(),
             ram_scroll: UniformListScrollHandle::new(),
-            ram_rows,
+            ram_rows: ram_rows(part),
             focus: cx.focus_handle(),
         };
         match file {
@@ -155,8 +160,13 @@ impl Simulator {
         self.status = text.into();
     }
 
+    /// The part the machine is.
+    fn part(&self) -> Part {
+        self.shown.part
+    }
+
     fn follow_pc(&mut self) {
-        let pc = self.shown.pc as usize % pic::ROM_WORDS;
+        let pc = self.shown.pc as usize % self.shown.rom.len();
         self.program_scroll
             .scroll_to_item(pc, ScrollStrategy::Center);
     }
@@ -164,15 +174,35 @@ impl Simulator {
     // ---- files ---------------------------------------------------------
 
     pub fn load_demo(&mut self, cx: &mut Context<Self>) {
+        self.load_demo_for(self.part(), cx);
+    }
+
+    /// Switch the machine to another part, on that part's demo: a program
+    /// for one core means nothing on the other.
+    pub fn set_part(&mut self, part: Part, cx: &mut Context<Self>) {
+        if part != self.part() {
+            self.load_demo_for(part, cx);
+        }
+    }
+
+    fn load_demo_for(&mut self, part: Part, cx: &mut Context<Self>) {
         self.halt(cx);
-        let mut pic = Pic::new();
-        match project::assemble_source(project::DEMO, &mut pic) {
+        let mut pic = Pic::with_part(part);
+        match project::assemble_source(project::demo(part), &mut pic) {
             Ok(ann) => {
                 pic.reset();
                 self.ann = ann;
+                self.ram_rows = ram_rows(part);
                 *self.machine() = pic;
                 self.path = None;
-                self.set_status("Demo: GP0 toggles on every TMR0 overflow. Press Run.");
+                self.speed = None;
+                self.set_status(match part.core() {
+                    Core::Midrange => "Demo: GP0 toggles on every TMR0 overflow. Press Run.",
+                    Core::Baseline => {
+                        "Demo: GP0 toggles each time TMR0 wraps. The 12C508 starts at 0x1FF, \
+                         its calibration word. Press Run."
+                    }
+                });
             }
             Err(e) => self.set_status(format!("demo failed to assemble: {e}")),
         }
@@ -201,10 +231,11 @@ impl Simulator {
 
     pub fn open_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         self.halt(cx);
-        let mut pic = Pic::new();
+        let mut pic = Pic::with_part(self.part());
         match project::open(&path, &mut pic) {
             Ok(ann) => {
                 self.ann = ann;
+                self.ram_rows = ram_rows(pic.part);
                 *self.machine() = pic;
                 self.set_status(format!("Opened {}", path.display()));
                 self.path = Some(path);
@@ -439,7 +470,8 @@ impl Simulator {
     pub fn toggle_breakpoint_at(&mut self, addr: u16, cx: &mut Context<Self>) {
         {
             let mut pic = self.machine();
-            let slot = &mut pic.breakpoints[addr as usize % pic::ROM_WORDS];
+            let words = pic.rom.len();
+            let slot = &mut pic.breakpoints[addr as usize % words];
             *slot = !*slot;
         }
         self.refresh();
@@ -452,7 +484,10 @@ impl Simulator {
     }
 
     pub fn clear_breakpoints(&mut self, cx: &mut Context<Self>) {
-        self.machine().breakpoints = vec![false; pic::ROM_WORDS];
+        {
+            let mut pic = self.machine();
+            pic.breakpoints = vec![false; pic.rom.len()];
+        }
         self.refresh();
         self.set_status("Cleared all breakpoints");
         cx.notify();
@@ -474,9 +509,13 @@ impl Simulator {
         let pic = &self.shown;
         let text = match edit {
             Edit::Instruction(a) => {
-                let banks = isa::banks(&pic.rom);
-                let (m, ops) =
-                    isa::disassemble(pic.rom[a as usize], &self.ann.names, banks[a as usize]);
+                let banks = isa::banks(&pic.rom, pic.part);
+                let (m, ops) = isa::disassemble(
+                    pic.rom[a as usize],
+                    &self.ann.names,
+                    banks[a as usize],
+                    pic.part,
+                );
                 format!("{} {ops}", m.to_ascii_lowercase())
                     .trim()
                     .to_string()
@@ -525,7 +564,7 @@ impl Simulator {
                 if text.is_empty() {
                     Ok(())
                 } else {
-                    isa::assemble(&text, &self.ann.names).map(|w| {
+                    isa::assemble(&text, &self.ann.names, self.part()).map(|w| {
                         self.machine().rom[a as usize] = w;
                     })
                 }
@@ -557,7 +596,9 @@ impl Simulator {
             }
             Edit::Analog(ch) => number(1023).map(|v| self.machine().analog[ch] = v as u16),
             Edit::W => number(0xFF).map(|v| self.machine().w = v as u8),
-            Edit::Pc => number(pic::ROM_WORDS as u32 - 1).map(|v| self.machine().pc = v as u16),
+            Edit::Pc => {
+                number(self.shown.rom.len() as u32 - 1).map(|v| self.machine().pc = v as u16)
+            }
         };
         match result {
             Ok(()) => {
@@ -607,12 +648,7 @@ impl Simulator {
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child("CocoaPic"),
             )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(theme::muted())
-                    .child("PIC12F675"),
-            )
+            .child(self.part_picker(cx))
             .child(div().w(px(12.)))
             .child(button(
                 "reset",
@@ -653,6 +689,37 @@ impl Simulator {
             ))
     }
 
+    /// The part, as a segmented control: one button per part, the current one
+    /// lit.
+    fn part_picker(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let current = self.part();
+        div()
+            .flex()
+            .p(px(2.))
+            .gap(px(2.))
+            .rounded_md()
+            .border_1()
+            .border_color(theme::border())
+            .bg(theme::bg())
+            .children(Part::ALL.into_iter().enumerate().map(|(i, part)| {
+                let on = part == current;
+                div()
+                    .id(("part", i))
+                    .px_2()
+                    .rounded_sm()
+                    .text_xs()
+                    .when(on, |d| d.bg(theme::tab_active()).text_color(theme::fg()))
+                    .when(!on, |d| {
+                        d.text_color(theme::muted())
+                            .cursor_pointer()
+                            .hover(|s| s.bg(theme::hover()))
+                    })
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(cx.listener(move |v, _: &ClickEvent, _, cx| v.set_part(part, cx)))
+                    .child(part.name())
+            }))
+    }
+
     fn program(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let heading = div()
             .flex()
@@ -680,9 +747,9 @@ impl Simulator {
             .child(
                 uniform_list(
                     "program",
-                    pic::ROM_WORDS,
+                    self.shown.rom.len(),
                     cx.processor(|this, range: Range<usize>, _window, cx| {
-                        let banks = isa::banks(&this.shown.rom);
+                        let banks = isa::banks(&this.shown.rom, this.shown.part);
                         range
                             .map(|i| this.program_row(i, banks[i], cx))
                             .collect::<Vec<_>>()
@@ -697,10 +764,10 @@ impl Simulator {
         let addr = i as u16;
         let pic = &self.shown;
         let word = pic.rom[i];
-        let at_pc = pic.pc as usize % pic::ROM_WORDS == i;
+        let at_pc = pic.pc as usize % pic.rom.len() == i;
         let breakpoint = pic.breakpoints[i];
-        let (mnem, ops) = isa::disassemble(word, &self.ann.names, bank1);
-        let erased = word == pic::ERASED;
+        let (mnem, ops) = isa::disassemble(word, &self.ann.names, bank1, pic.part);
+        let erased = word == pic.part.erased();
         let label = self.ann.names.label(addr).map(str::to_string);
         let note = self.ann.notes.get(&addr).cloned().unwrap_or_default();
         let edit = self.editing;
@@ -845,7 +912,7 @@ impl Simulator {
         let pic = &self.shown;
         let before = &self.before;
         let status = pic.status();
-        let flags = ["C", "DC", "Z", "PD", "TO", "RP0", "RP1", "IRP"];
+        let flags = pic.part.status_bits();
         let flag_row = div().flex().gap_1().children((0..8).rev().map(|b| {
             let on = status & (1 << b) != 0;
             let changed = (status ^ before.status()) & (1 << b) != 0;
@@ -857,7 +924,8 @@ impl Simulator {
                 .when(on, |d| d.bg(theme::tab_active()).text_color(theme::fg()))
                 .when(!on, |d| d.text_color(theme::faint()))
                 .when(changed, |d| d.text_color(theme::changed()))
-                .child(flags[b])
+                // An unimplemented bit keeps its place.
+                .child(if flags[b].is_empty() { "–" } else { flags[b] })
         }));
 
         let stack = pic.stack_view();
@@ -913,7 +981,7 @@ impl Simulator {
                     .child(field(
                         "WDT",
                         mono(
-                            if pic.config.wdt() {
+                            if pic.wdt_enabled() {
                                 format!("{:3.0}%", pic.wdt_fraction() * 100.)
                             } else {
                                 "off".into()
@@ -944,6 +1012,7 @@ impl Simulator {
 
     fn pins_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let pic = &self.shown;
+        let before = &self.before;
         let analog = pic.analog_pins();
         let pins = div().flex().gap_2().children((0..6u8).map(|pin| {
             let out = pic.is_output(pin);
@@ -1010,15 +1079,39 @@ impl Simulator {
                 }))
         }));
 
+        // The 12C508 has no A/D; in its place, OPTION and TRIS, which have no
+        // address to show them in the RAM panel.
+        let (hint, below) = match pic.part.core() {
+            Core::Midrange => (
+                "Click an input to drive it high or low. Double-click an AN value (0–1023) to set it.",
+                channels.into_any_element(),
+            ),
+            Core::Baseline => {
+                let (option, tris) = (pic.option(), pic.tris());
+                (
+                    "Click an input to drive it high or low. With wake-on-change on in OPTION, \
+                     a change on GP0, GP1 or GP3 wakes the part from SLEEP.",
+                    div()
+                        .flex()
+                        .gap_4()
+                        .child(field(
+                            "OPTION",
+                            mono(format!("0x{option:02X}"), option != before.option())
+                                .into_any_element(),
+                        ))
+                        .child(field(
+                            "TRIS",
+                            mono(format!("0x{tris:02X}"), tris != before.tris()).into_any_element(),
+                        ))
+                        .into_any_element(),
+                )
+            }
+        };
+
         panel("Pins")
             .child(pins)
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(theme::muted())
-                    .child("Click an input to drive it high or low. Double-click an AN value (0–1023) to set it."),
-            )
-            .child(channels)
+            .child(div().text_xs().text_color(theme::muted()).child(hint))
+            .child(below)
     }
 
     fn ram_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -1065,7 +1158,7 @@ impl Simulator {
         let pic = &self.shown;
         let v = pic.peek(addr);
         let changed = v != self.before.peek(addr);
-        let gpr = addr >= 0x20;
+        let gpr = pic.part.gprs().contains(&addr);
         let name = if gpr {
             self.ann
                 .names
@@ -1074,7 +1167,7 @@ impl Simulator {
                 .cloned()
                 .unwrap_or_default()
         } else {
-            pic::sfr_name(addr).unwrap_or("").to_string()
+            pic.part.sfr_name(addr).unwrap_or("").to_string()
         };
         let value_color = if changed {
             theme::changed()
@@ -1404,7 +1497,8 @@ mod tests {
 
     #[gpui::test]
     async fn the_window_draws_steps_and_edits(cx: &mut gpui::TestAppContext) {
-        let (view, cx) = cx.add_window_view(|_window, cx| Simulator::new(None, cx));
+        let (view, cx) =
+            cx.add_window_view(|_window, cx| Simulator::new(None, Part::Pic12F675, cx));
         cx.run_until_parked();
         draw(&view, cx);
 
@@ -1460,7 +1554,8 @@ mod tests {
 
     #[gpui::test]
     async fn pins_and_ram_edit(cx: &mut gpui::TestAppContext) {
-        let (view, cx) = cx.add_window_view(|_window, cx| Simulator::new(None, cx));
+        let (view, cx) =
+            cx.add_window_view(|_window, cx| Simulator::new(None, Part::Pic12F675, cx));
         cx.run_until_parked();
         view.update_in(cx, |v, window, cx| {
             v.start_edit(Edit::RamValue(0x20), window, cx);
@@ -1469,6 +1564,50 @@ mod tests {
             assert_eq!(v.shown.peek(0x20), 10);
             v.drive_pin(3, cx);
             assert!(v.shown.pin_level(3));
+        });
+        draw(&view, cx);
+    }
+
+    #[gpui::test]
+    async fn switching_to_the_12c508(cx: &mut gpui::TestAppContext) {
+        let (view, cx) =
+            cx.add_window_view(|_window, cx| Simulator::new(None, Part::Pic12F675, cx));
+        cx.run_until_parked();
+        view.update(cx, |v, cx| {
+            v.set_part(Part::Pic12C508, cx);
+            assert_eq!(v.part(), Part::Pic12C508);
+            assert_eq!(v.shown.rom.len(), 512);
+            assert_eq!(v.shown.pc, 0x1FF, "starts at the calibration word");
+            assert_eq!(v.ram_rows.first(), Some(&0x00));
+            assert_eq!(v.ram_rows.last(), Some(&0x1F));
+            // The calibration MOVLW, then the demo's set-up: GP0 an output.
+            for _ in 0..6 {
+                v.step(cx);
+            }
+            assert_eq!(v.shown.pc, 5);
+            assert!(v.shown.is_output(0));
+            assert_eq!(v.shown.tris(), 0x3E);
+        });
+        draw(&view, cx);
+
+        // Instructions edit in the 12-bit set.
+        view.update_in(cx, |v, window, cx| {
+            v.start_edit(Edit::Instruction(0x20), window, cx);
+            v.editor.update(cx, |e, cx| e.set_content("tris GPIO", cx));
+            v.commit_edit(cx);
+            assert_eq!(v.machine().rom[0x20], 0x006);
+            v.start_edit(Edit::Instruction(0x21), window, cx);
+            v.editor.update(cx, |e, cx| e.set_content("addlw 1", cx));
+            v.commit_edit(cx);
+            assert!(v.status.contains("no ADDLW"), "{}", v.status);
+        });
+        draw(&view, cx);
+
+        // And back.
+        view.update(cx, |v, cx| {
+            v.set_part(Part::Pic12F675, cx);
+            assert_eq!(v.shown.rom.len(), 1024);
+            assert_eq!(v.shown.pc, 0);
         });
         draw(&view, cx);
     }
