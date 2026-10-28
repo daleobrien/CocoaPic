@@ -295,6 +295,38 @@ static CANONICAL: [u8; 256] = {
     table
 };
 
+/// Which canonical registers a write simply stores to: the general-purpose
+/// RAM and the SFRs [`Pic::write_special`] has no rule for. Most writes are
+/// these, and one table load tells them from the rest.
+static PLAIN_WRITE: [bool; 256] = {
+    let special = [
+        UNIMPLEMENTED,
+        INDF,
+        PCL,
+        STATUS,
+        TMR0,
+        GPIO,
+        TRISIO,
+        OPTION_REG,
+        CMCON,
+        PCLATH,
+        ADCON0,
+        EECON2,
+        EECON1,
+        ANSEL,
+        PCON,
+        WPU,
+        IOC,
+    ];
+    let mut table = [true; 256];
+    let mut i = 0;
+    while i < special.len() {
+        table[special[i] as usize] = false;
+        i += 1;
+    }
+    table
+};
+
 /// The [`CANONICAL`] entry for an address with no register. No real register
 /// lives at 0xFF: that is bank 1's top GPR mirror, which is unimplemented.
 const UNIMPLEMENTED: u8 = 0xFF;
@@ -641,6 +673,15 @@ impl Pic {
 
     #[inline(always)]
     fn write_direct(&mut self, a: u8, v: u8) {
+        if PLAIN_WRITE[a as usize] {
+            self.regs[a as usize] = v;
+            return;
+        }
+        self.write_special(a, v)
+    }
+
+    /// A write to a register that does more than store the value.
+    fn write_special(&mut self, a: u8, v: u8) {
         match a {
             UNIMPLEMENTED | INDF => {}
             PCL => {
@@ -1637,6 +1678,22 @@ mod tests {
             pic.step();
         }
         assert_eq!(pic.eeprom[4], 0x5A);
+    }
+
+    #[test]
+    fn plain_writes_are_the_ones_with_no_special_rule() {
+        let mut pic = Pic::new();
+        pic.regs[FSR as usize] = 0x20;
+        for a in 0..=255u8 {
+            if !PLAIN_WRITE[a as usize] {
+                continue;
+            }
+            let mut special = pic.clone();
+            special.write_special(a, 0x5A);
+            let mut plain = pic.clone();
+            plain.regs[a as usize] = 0x5A;
+            assert_eq!(state(&special), state(&plain), "register 0x{a:02X}");
+        }
     }
 
     /// What `run` did before it batched cycles: one `step` at a time.
