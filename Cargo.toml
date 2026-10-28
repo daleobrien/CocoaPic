@@ -16,7 +16,9 @@ serde_json = "1.0.151"
 # warnings (block, proc-macro-error2); zed's main has moved to objc2/block2.
 gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f" }
 # The platform backends now live outside gpui; this picks the macOS one.
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f" }
+# Without `font-kit` the macOS backend falls back to a no-op text system and
+# the window draws no text at all.
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f", features = ["font-kit"] }
 # Grapheme boundaries for the hand-rolled text input's cursor movement.
 unicode-segmentation = "1"
 
