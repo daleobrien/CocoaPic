@@ -1,0 +1,22 @@
+[package]
+name = "cocoapic"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.6", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The native frontend, as in StorySearch. gpui is pre-1.0 and moves, so the
+# version is pinned.
+gpui = "0.2"
+# Grapheme boundaries for the hand-rolled text input's cursor movement.
+unicode-segmentation = "1"
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+# gpui gates its `TestAppContext` harness behind `test-support`; the tests use
+# it to draw the real window without a display.
+gpui = { version = "0.2", features = ["test-support"] }
