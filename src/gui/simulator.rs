@@ -769,6 +769,7 @@ impl Simulator {
 
         div()
             .id(("row", i))
+            .w_full()
             .flex()
             .items_center()
             .h(px(ROW))
@@ -1065,6 +1066,7 @@ impl Simulator {
 
         div()
             .id(("ram", i))
+            .w_full()
             .flex()
             .items_center()
             .h(px(ROW))
