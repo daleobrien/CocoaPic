@@ -13,7 +13,7 @@ help:
 	@echo "  make check      cargo check"
 	@echo "  make build      cargo build --release"
 	@echo "  make test       cargo test, including the headless window tests"
-	@echo "  make run        cargo run — the native window from source"
+	@echo "  make run        cargo run --release — the native window from source"
 	@echo "  make app        ./bundle.sh — CocoaPic.app, arm64, ad-hoc signed"
 	@echo "  make universal  ./bundle.sh --universal"
 	@echo "  make open       open the bundled CocoaPic.app"
@@ -31,7 +31,7 @@ debug:
 test:
 	cargo test
 run:
-	cargo run
+	cargo run --release
 app:
 	./bundle.sh
 universal:
