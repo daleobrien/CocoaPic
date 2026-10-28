@@ -117,3 +117,71 @@ fn gui(file: Option<PathBuf>) -> Result<()> {
 fn gui(_file: Option<PathBuf>) -> Result<()> {
     anyhow::bail!("the window is macOS only; use `run`, `disasm` or `asm`")
 }
+
+#[cfg(test)]
+mod rt_bench {
+    use crate::pic::{self, Pic, Stop};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    fn measure(file: &str, secs: f64) {
+        let mut p = Pic::new();
+        crate::project::open(std::path::Path::new(file), &mut p).unwrap();
+        let pic = Arc::new(Mutex::new(p));
+        let stop = Arc::new(AtomicBool::new(false));
+        let t = {
+            let pic = pic.clone(); let stop = stop.clone();
+            std::thread::spawn(move || {
+                let began = Instant::now();
+                let start_cycles = 0u64;
+                let mut late_max = Duration::ZERO;
+                loop {
+                    let (reason, cycles) = {
+                        let mut pic = pic.lock().unwrap();
+                        let r = pic.run(1_000, &|| stop.load(Ordering::Relaxed));
+                        (r, pic.cycles)
+                    };
+                    if reason != Stop::Budget || stop.load(Ordering::Relaxed) { break; }
+                    let due = Duration::from_secs_f64((cycles - start_cycles) as f64 / pic::CYCLES_PER_SECOND as f64);
+                    match due.checked_sub(began.elapsed()) {
+                        Some(w) => std::thread::sleep(w),
+                        None => late_max = late_max.max(began.elapsed() - due),
+                    }
+                }
+                late_max
+            })
+        };
+        // The "GUI": clone the machine every 33 ms, as poll()/refresh() do.
+        let began = Instant::now();
+        let mut clone_max = Duration::ZERO;
+        let mut samples = vec![];
+        while began.elapsed().as_secs_f64() < secs {
+            std::thread::sleep(Duration::from_millis(33));
+            let t0 = Instant::now();
+            let copy = pic.lock().unwrap().clone();
+            clone_max = clone_max.max(t0.elapsed());
+            samples.push((began.elapsed().as_secs_f64(), copy.cycles));
+        }
+        stop.store(true, Ordering::Relaxed);
+        let late = t.join().unwrap();
+        let (el, cyc) = *samples.last().unwrap();
+        let rate = cyc as f64 / el;
+        // worst deviation of any 1 s window
+        let mut worst: f64 = 0.0;
+        for i in 0..samples.len() { for j in i..samples.len() {
+            let dt = samples[j].0 - samples[i].0;
+            if (dt - 1.0).abs() < 0.02 { let r = (samples[j].1 - samples[i].1) as f64 / dt; worst = worst.max((r / 1e6 - 1.0).abs()); }
+        }}
+        println!("{file}: {:.4} M cycles/s over {el:.2}s ({:+.3}% vs 1 MHz), worst 1s window off by {:.3}%, max clone/lock wait {:?}, max lateness {:?}",
+            rate / 1e6, (rate / 1e6 - 1.0) * 100.0, worst * 100.0, clone_max, late);
+    }
+
+    /// Real-time pacing check: `cargo test --release realtime_rate -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn realtime_rate() {
+        measure("examples/blink.asm", 10.0);
+        measure("examples/counter.asm", 10.0);
+    }
+}
