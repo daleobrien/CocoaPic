@@ -1,4 +1,4 @@
-//! The native frontend: one gpui window driving [`crate::pic::Pic`]
+//! The native frontend: one gpui window driving [`cocoapic::pic::Pic`]
 //! in-process, built the way StorySearch's is — gpui for the window, a
 //! system-following palette, and the menu bar and keys wired to actions.
 

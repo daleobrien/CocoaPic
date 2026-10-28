@@ -25,9 +25,9 @@ use gpui::{
 
 use crate::gui::theme;
 use crate::gui::widgets::text_input::TextInput;
-use crate::isa;
-use crate::pic::{self, Pic, Stop};
-use crate::project::{self, Annotations};
+use cocoapic::isa;
+use cocoapic::pic::{self, Pic, Stop};
+use cocoapic::project::{self, Annotations};
 
 const ROW: f32 = 20.;
 const MONO: &str = "Menlo";

@@ -3,7 +3,7 @@
 # `make run-file`, `make disasm` and `make asm`.
 
 .DEFAULT_GOAL := help
-.PHONY: help check build debug test run gui app universal open demo disasm asm fmt clippy lint clean
+.PHONY: help check build debug test bench run gui app universal open demo disasm asm fmt clippy lint clean
 
 FILE ?= examples/blink.asm
 
@@ -13,6 +13,7 @@ help:
 	@echo "  make check      cargo check"
 	@echo "  make build      cargo build --release"
 	@echo "  make test       cargo test, including the headless window tests"
+	@echo "  make bench      cargo bench — full-speed MIPS on the example programs"
 	@echo "  make run        cargo run --release — the native window from source"
 	@echo "  make app        ./bundle.sh — CocoaPic.app, arm64, ad-hoc signed"
 	@echo "  make universal  ./bundle.sh --universal"
@@ -30,6 +31,8 @@ debug:
 	cargo build
 test:
 	cargo test
+bench:
+	cargo bench --bench core
 run:
 	cargo run --release
 app:

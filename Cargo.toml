@@ -26,3 +26,12 @@ unicode-segmentation = "1"
 # gpui gates its `TestAppContext` harness behind `test-support`; the tests use
 # it to draw the real window without a display.
 gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f", features = ["test-support"] }
+
+[dev-dependencies]
+# `make bench`: the simulator core at full speed (Realtime off). Plain
+# console reports only; plotters and rayon add nothing here.
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "core"
+harness = false

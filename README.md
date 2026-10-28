@@ -11,6 +11,7 @@ cargo run                         # the window, on the built-in blink demo
 cargo run -- gui examples/blink.asm
 ./bundle.sh && open CocoaPic.app  # the bundled app
 cargo test                        # core tests plus headless window tests
+make bench                        # full-speed MIPS on the example programs
 ```
 
 The CLI runs the same core without the window:
