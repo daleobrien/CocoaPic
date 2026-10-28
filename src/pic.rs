@@ -500,13 +500,11 @@ impl Pic {
         self.status() & (1 << bit) != 0
     }
 
+    #[inline(always)]
     fn set_flag(&mut self, bit: u8, on: bool) {
+        // Without a branch: the ALU's flags are as good as random.
         let s = &mut self.regs[STATUS as usize];
-        if on {
-            *s |= 1 << bit;
-        } else {
-            *s &= !(1 << bit);
-        }
+        *s = (*s & !(1 << bit)) | ((on as u8) << bit);
     }
 
     fn bank(&self) -> u8 {
