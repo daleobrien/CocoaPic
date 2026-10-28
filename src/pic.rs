@@ -715,12 +715,14 @@ impl Pic {
 
     // ---- stack ---------------------------------------------------------
 
+    #[inline(always)]
     fn push(&mut self, addr: u16) {
         self.stack[self.sp] = addr & 0x1FFF;
         self.sp = (self.sp + 1) % STACK_DEPTH;
         self.depth = (self.depth + 1).min(STACK_DEPTH);
     }
 
+    #[inline(always)]
     fn pop(&mut self) -> u16 {
         self.sp = (self.sp + STACK_DEPTH - 1) % STACK_DEPTH;
         self.depth = self.depth.saturating_sub(1);
@@ -878,6 +880,7 @@ impl Pic {
     /// return its cycle count. `BASE` picks the core: false for the 12F675's
     /// midrange, true for the 12C508's baseline. It is a constant, so each
     /// core gets its own copy of this with the other's paths compiled out.
+    #[inline(always)]
     fn exec<const BASE: bool>(&mut self, op: Op) -> u32 {
         use Op::*;
         match op {
@@ -1100,6 +1103,7 @@ impl Pic {
 
     /// A byte-oriented file instruction: read f, compute, and store the result
     /// in W (`d` false) or back in f.
+    #[inline(always)]
     fn alu<const BASE: bool>(
         &mut self,
         f: u8,
@@ -1126,6 +1130,7 @@ impl Pic {
         }
     }
 
+    #[inline(always)]
     fn zero(&mut self, r: u8) -> u8 {
         self.set_flag(Z, r == 0);
         r
@@ -1137,6 +1142,7 @@ impl Pic {
         if a == PCL { 2 } else { 1 }
     }
 
+    #[inline(always)]
     fn skip<const BASE: bool>(&mut self, take: bool) -> u32 {
         if take {
             let mask = if BASE { baseline::PC_MASK } else { 0x1FFF };
@@ -1154,6 +1160,7 @@ impl Pic {
     }
 
     /// GOTO/CALL take PCLATH<4:3> as the page bits above their 11-bit target.
+    #[inline(always)]
     fn page(&self, k: u16) -> u16 {
         ((self.regs[PCLATH as usize] as u16 & 0x18) << 8) | (k & 0x7FF)
     }
