@@ -107,6 +107,7 @@ impl Pic {
         self.prescaler = 0;
         self.wdt = 0;
         self.tmr0_hold = 0;
+        self.quiet = 0;
         self.t0ck_level = self.level12(2);
         self.gpio_latched = self.gpio12();
     }
@@ -143,6 +144,14 @@ impl Pic {
     /// wake-on-change compares against.
     #[inline(always)]
     pub(super) fn read12(&mut self, a: u8) -> u8 {
+        let r = if a == INDF {
+            self.regs[FSR as usize] & 0x1F
+        } else {
+            a
+        };
+        if r == TMR0 {
+            self.sync::<true>();
+        }
         let v = self.peek12(a);
         if a == GPIO {
             self.gpio_latched = v;
@@ -168,6 +177,8 @@ impl Pic {
         match a {
             INDF => {}
             TMR0 => {
+                self.resync::<true>();
+                let r = &mut self.regs;
                 r[TMR0 as usize] = v;
                 // A write clears an assigned prescaler and holds the count.
                 if r[OPTION] & 0x08 == 0 {
@@ -279,6 +290,36 @@ impl Pic {
     /// cannot fire in them, as on the 12F675 (see [`Pic::tick`]).
     #[inline(always)]
     fn tick12(&mut self, n: u32) -> u32 {
+        // As on the 12F675, most cycles need only counting.
+        if n <= self.quiet {
+            self.quiet -= n;
+            self.pending += n;
+            self.cycles += n as u64;
+            return n;
+        }
+        self.sync::<true>();
+        self.tick12_now(n);
+        self.quiet = self.quiet12();
+        n
+    }
+
+    /// [`Pic::quiet14`] for the 12C508, where TMR0 wrapping flags nothing:
+    /// only the watchdog is ever due.
+    fn quiet12(&self) -> u32 {
+        if self.sleeping || self.tmr0_runway().is_none() {
+            return 0;
+        }
+        if self.wdt12() {
+            return self
+                .wdt_limit()
+                .saturating_sub(self.wdt + 1)
+                .min(u32::MAX as u64) as u32;
+        }
+        u32::MAX
+    }
+
+    #[inline(always)]
+    fn tick12_now(&mut self, n: u32) -> u32 {
         let wdt = self.wdt12();
         if wdt && self.wdt + n as u64 >= self.wdt_limit() {
             return self.tick12_cycles(n);
@@ -315,7 +356,7 @@ impl Pic {
     }
 
     /// TMR0 as on the 12F675, but nothing is flagged when it wraps.
-    fn tick_tmr0_12(&mut self) {
+    pub(super) fn tick_tmr0_12(&mut self) {
         if self.sleeping {
             return;
         }

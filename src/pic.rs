@@ -308,6 +308,9 @@ static PLAIN_WRITE: [bool; 256] = {
         GPIO,
         TRISIO,
         OPTION_REG,
+        TMR1L,
+        TMR1H,
+        T1CON,
         CMCON,
         PCLATH,
         ADCON0,
@@ -397,6 +400,14 @@ pub struct Pic {
     /// Cycles left during which a TMR0 write holds the timer.
     tmr0_hold: u8,
 
+    /// Cycles that have passed but not yet been counted into the timers, the
+    /// watchdog and the A/D: see [`Pic::tick`]. Zero outside `run` and `step`.
+    pending: u32,
+    /// How many more cycles can pass that way before one of them has to be
+    /// counted for real, because a timer would wrap, the watchdog fire or the
+    /// A/D finish. Zero when the next tick must work it out again.
+    quiet: u32,
+
     /// Each program word as last decoded, with the word it came from. `rom` is
     /// public and can change under it, so a fetch checks the word still
     /// matches; that costs a compare, where decoding costs a dozen branches.
@@ -444,6 +455,8 @@ impl Pic {
             gpio_latched: 0,
             int_level: false,
             pins_settled: false,
+            pending: 0,
+            quiet: 0,
             t0ck_level: false,
             tmr0_hold: 0,
             // A word no program word is (they are at most 14 bits), so the
@@ -489,6 +502,8 @@ impl Pic {
         self.t0ck_level = self.int_level;
         self.gpio_latched = self.gpio_pins();
         self.pins_settled = false;
+        self.pending = 0;
+        self.quiet = 0;
         self.tmr0_hold = 0;
         self.cycles = 0;
     }
@@ -608,6 +623,14 @@ impl Pic {
     /// side effects a read has (GPIO latches the interrupt-on-change compare).
     #[inline(always)]
     fn read_reg(&mut self, a: u8) -> u8 {
+        let r = if a == INDF {
+            CANONICAL[self.regs[FSR as usize] as usize]
+        } else {
+            a
+        };
+        if matches!(r, TMR0 | TMR1L | TMR1H) {
+            self.sync::<false>();
+        }
         let v = self.peek_reg(a);
         if a == GPIO {
             self.gpio_latched = v;
@@ -682,6 +705,10 @@ impl Pic {
 
     /// A write to a register that does more than store the value.
     fn write_special(&mut self, a: u8, v: u8) {
+        // The timers' and the A/D's state, or how they count.
+        if matches!(a, TMR0 | OPTION_REG | TMR1L | TMR1H | T1CON | ADCON0) {
+            self.resync::<false>();
+        }
         match a {
             UNIMPLEMENTED | INDF => {}
             PCL => {
@@ -815,11 +842,32 @@ impl Pic {
     /// Execute one instruction (or one cycle of sleep, or an interrupt
     /// vector), and return the instruction cycles it took.
     pub fn step(&mut self) -> u32 {
-        // The pins may have changed from outside since the last step.
+        // The pins, registers or config may have changed from outside since
+        // the last step.
         self.pins_settled = false;
-        match self.part.core() {
+        self.quiet = 0;
+        let cycles = match self.part.core() {
             Core::Midrange => self.step14(),
             Core::Baseline => self.step12(),
+        };
+        self.sync_all();
+        cycles
+    }
+
+    /// [`Pic::sync`], before something changes how the peripherals count, so
+    /// the next tick works out [`Pic::quiet`] again.
+    #[inline(always)]
+    pub(super) fn resync<const BASE: bool>(&mut self) {
+        self.sync::<BASE>();
+        self.quiet = 0;
+    }
+
+    /// Count every cycle that has passed into the peripherals, so the state
+    /// is exact for the outside world.
+    fn sync_all(&mut self) {
+        match self.part.core() {
+            Core::Midrange => self.sync::<false>(),
+            Core::Baseline => self.sync::<true>(),
         }
     }
 
@@ -866,12 +914,16 @@ impl Pic {
     /// says so. A breakpoint at the PC on entry does not stop it: that is the
     /// one we are resuming from.
     pub fn run(&mut self, budget: u64, stop: impl Fn() -> bool) -> Stop {
+        // As for `step`: things may have changed from outside.
         self.pins_settled = false;
+        self.quiet = 0;
         // The part is chosen once here, so each core's loop is its own code.
-        match self.part.core() {
+        let stopped = match self.part.core() {
             Core::Midrange => self.run_with::<false, ROM_WORDS>(budget, stop),
             Core::Baseline => self.run_with::<true, { baseline::ROM_WORDS }>(budget, stop),
-        }
+        };
+        self.sync_all();
+        stopped
     }
 
     /// The run loop for one core: `BASE` as for [`Pic::exec`]. The core's
@@ -1119,12 +1171,14 @@ impl Pic {
                 1
             }
             Clrwdt => {
+                self.resync::<BASE>();
                 self.clear_wdt();
                 self.set_flag(TO, true);
                 self.set_flag(PD, true);
                 1
             }
             Sleep => {
+                self.resync::<BASE>();
                 self.clear_wdt();
                 self.set_flag(TO, true);
                 self.set_flag(PD, false);
@@ -1134,6 +1188,7 @@ impl Pic {
             // Only the baseline decodes these. OPTION and TRIS live where the
             // 12F675 keeps OPTION_REG and TRISIO; see `baseline`.
             Option => {
+                self.resync::<BASE>();
                 self.regs[OPTION_REG as usize] = self.w;
                 1
             }
@@ -1250,6 +1305,26 @@ impl Pic {
 
     /// Advance the clocked peripherals by `n` instruction cycles.
     ///
+    /// Most cycles only need counting: until [`Pic::quiet`] runs out nothing
+    /// is due, so they go into [`Pic::pending`] and the timers catch up when
+    /// something reads them or changes how they count ([`Pic::sync`]).
+    #[inline(always)]
+    fn tick(&mut self, n: u32) -> u32 {
+        if n <= self.quiet {
+            self.quiet -= n;
+            self.pending += n;
+            self.cycles += n as u64;
+            self.watch_pins();
+            return n;
+        }
+        self.sync::<false>();
+        self.tick_now(n);
+        self.quiet = self.quiet14();
+        n
+    }
+
+    /// [`Pic::tick`] with every peripheral brought up to date.
+    ///
     /// Within one instruction's cycles the peripherals do not affect each
     /// other, unless the watchdog fires and resets the part between them, and
     /// nothing moves a pin, so only the first cycle can see one change. So
@@ -1257,7 +1332,7 @@ impl Pic {
     /// once, its enable bits read once rather than per cycle; otherwise they
     /// go cycle by cycle, in order.
     #[inline(always)]
-    fn tick(&mut self, n: u32) -> u32 {
+    fn tick_now(&mut self, n: u32) -> u32 {
         if self.config.0 & 0x08 != 0 && self.wdt + n as u64 >= self.wdt_limit() {
             return self.tick_cycles(n);
         }
@@ -1279,6 +1354,90 @@ impl Pic {
         }
         self.watch_pins();
         n
+    }
+
+    /// Count the pending cycles into the peripherals. `BASE` as for
+    /// [`Pic::exec`]. While cycles are pending the part is awake and nothing
+    /// is due within them, so this is each one's bulk count. It leaves
+    /// [`Pic::quiet`] as it is: that counts down to the next event either way.
+    #[inline(always)]
+    pub(super) fn sync<const BASE: bool>(&mut self) {
+        if self.pending == 0 {
+            return;
+        }
+        let n = std::mem::take(&mut self.pending);
+        if self.wdt_enabled_for::<BASE>() {
+            self.wdt += n as u64;
+        }
+        if BASE {
+            self.advance_tmr0::<false>(n, Self::tick_tmr0_12);
+        } else {
+            self.advance_tmr0::<true>(n, Self::tick_tmr0);
+            self.advance_tmr1(n);
+            self.adc_busy -= n.min(self.adc_busy);
+        }
+    }
+
+    #[inline(always)]
+    fn wdt_enabled_for<const BASE: bool>(&self) -> bool {
+        self.config.0 & if BASE { 0x04 } else { 0x08 } != 0
+    }
+
+    /// How many cycles can pass on the 12F675 before the next that must be
+    /// counted at once: short of TMR0 or TMR1 wrapping, the watchdog firing
+    /// or the A/D finishing. Zero asleep, or when a timer counts in a way the
+    /// bulk count leaves to the cycle-by-cycle rules.
+    fn quiet14(&self) -> u32 {
+        if self.sleeping {
+            return 0;
+        }
+        let mut quiet = u32::MAX as u64;
+        match self.tmr0_runway() {
+            Some(c) => quiet = quiet.min(c),
+            None => return 0,
+        }
+        let t1con = self.regs[T1CON as usize];
+        if t1con & 0x01 != 0 && t1con & 0x02 == 0 {
+            // Gated by a pin: left to the per-cycle rules.
+            if t1con & 0x40 != 0 {
+                return 0;
+            }
+            let rate = 1u32 << ((t1con >> 4) & 0x03);
+            let p = self.tmr1_prescaler as u32;
+            if p >= rate {
+                return 0;
+            }
+            let t = u16::from_le_bytes([self.regs[TMR1L as usize], self.regs[TMR1H as usize]]);
+            let left = 0x1_0000 - t as u64;
+            quiet = quiet.min((rate - p) as u64 + (left - 1) * rate as u64 - 1);
+        }
+        if self.config.0 & 0x08 != 0 {
+            quiet = quiet.min(self.wdt_limit().saturating_sub(self.wdt + 1));
+        }
+        if self.adc_busy > 0 {
+            quiet = quiet.min(self.adc_busy as u64 - 1);
+        }
+        quiet as u32
+    }
+
+    /// The cycles before TMR0's next wrap, less one; `None` if it counts in a
+    /// way the bulk count can't take (T0CKI, held after a write, or a
+    /// prescaler past a rate just lowered).
+    pub(super) fn tmr0_runway(&self) -> Option<u64> {
+        let option = self.regs[OPTION_REG as usize];
+        if option & 0x20 != 0 || self.tmr0_hold > 0 {
+            return None;
+        }
+        let left = 0x100 - self.regs[TMR0 as usize] as u64;
+        if option & 0x08 != 0 {
+            return Some(left - 1);
+        }
+        let rate = 2u64 << (option & 0x07);
+        let p = self.prescaler as u64;
+        if p >= rate {
+            return None;
+        }
+        Some((rate - p) + (left - 1) * rate - 1)
     }
 
     /// [`Pic::tick`] one cycle at a time.
@@ -1340,8 +1499,26 @@ impl Pic {
         if t1con & 0x01 == 0 || t1con & 0x02 != 0 {
             return;
         }
-        for _ in 0..n {
-            self.tick_tmr1();
+        let rate = 1u32 << ((t1con >> 4) & 0x03);
+        // Gated, or a prescaler past a rate just lowered: cycle by cycle.
+        if t1con & 0x40 != 0 || self.tmr1_prescaler as u32 >= rate {
+            for _ in 0..n {
+                self.tick_tmr1();
+            }
+            return;
+        }
+        let total = self.tmr1_prescaler as u32 + n;
+        self.tmr1_prescaler = (total & (rate - 1)) as u8;
+        let counts = total >> ((t1con >> 4) & 0x03);
+        if counts > 0 {
+            let was = u16::from_le_bytes([self.regs[TMR1L as usize], self.regs[TMR1H as usize]]);
+            let t = was as u32 + counts;
+            let [lo, hi] = (t as u16).to_le_bytes();
+            self.regs[TMR1L as usize] = lo;
+            self.regs[TMR1H as usize] = hi;
+            if t > 0xFFFF {
+                self.regs[PIR1 as usize] |= 1 << TMR1IF;
+            }
         }
     }
 
@@ -1805,6 +1982,56 @@ again bsf STATUS,RP0
     }
 
     #[test]
+    fn run_matches_stepping_with_timer_and_adc_interrupts() {
+        // A main loop that never reads a timer, so each interrupt must come
+        // on the cycle its flag is set, whichever way TMR0 and TMR1 count.
+        let reads = " movf TMR0,w
+ movwf 0x22
+ movf TMR1L,w
+ movwf 0x23
+ movlw 0x30
+ movwf FSR
+ movf INDF,w
+ movlw 0x0E
+ movwf FSR
+ movf INDF,w
+ movwf 0x24";
+        for (option, t1con, reads) in [
+            (0x88, 0x01, ""),
+            (0x80, 0x31, ""),
+            (0x83, 0x11, reads),
+            (0x8F, 0x21, reads),
+        ] {
+            assert_run_matches_stepping(&format!(
+                " __config 0x3F94
+ goto start
+ org 4
+ incf 0x21,f
+ bcf INTCON,2
+ bcf PIR1,0
+ bcf PIR1,6
+ bsf ADCON0,1
+ retfie
+start bsf STATUS,RP0
+ movlw {option}
+ movwf OPTION_REG
+ movlw 0x41
+ movwf PIE1
+ bcf STATUS,RP0
+ movlw {t1con}
+ movwf T1CON
+ movlw 0x03
+ movwf ADCON0
+ movlw 0xE0
+ movwf INTCON
+loop incf 0x20,f
+{reads}
+ goto loop"
+            ));
+        }
+    }
+
+    #[test]
     fn run_matches_stepping_asleep_until_the_adc_or_watchdog() {
         // Sleep through an A/D conversion, woken by its interrupt flag.
         assert_run_matches_stepping(
@@ -1829,6 +2056,25 @@ again movlw 0x03
  bcf STATUS,RP0
 again sleep
  incf 0x20,f
+ goto again",
+        );
+        // Awake, the watchdog resets the part mid-loop, on both cores.
+        assert_run_matches_stepping(
+            " __config 0x3F9C
+ bsf STATUS,RP0
+ movlw 0x0A
+ movwf OPTION_REG
+ bcf STATUS,RP0
+again incf 0x20,f
+ goto again",
+        );
+        assert_run_matches_stepping(
+            " processor 12C508
+ __config 0xFEE
+ movlw 0xCA
+ option
+again incf 0x07,f
+ movf TMR0,w
  goto again",
         );
         // On the 12C508 the watchdog wakes it with a reset.
