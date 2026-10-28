@@ -4,7 +4,7 @@
 #   ./bundle.sh              arm64 only, ad-hoc signed  (this machine)
 #   ./bundle.sh --universal  arm64 + x86_64 via lipo    (any Mac)
 #
-# The icon is the old app's own, 12C671.icns, from the repository root.
+# The icon is the old app's own, legacy/12C671.icns.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -40,7 +40,7 @@ fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/cocoapic"
-cp ../12C671.icns "$APP/Contents/Resources/AppIcon.icns"
+cp legacy/12C671.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

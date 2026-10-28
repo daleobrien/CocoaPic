@@ -1,7 +1,7 @@
 # CocoaPic (Rust)
 
 A PIC12F675 simulator with a native macOS window, rewritten in Rust from the
-2002–2003 Objective-C CocoaPic in the parent directory. Built the same way as
+2002–2003 Objective-C CocoaPic, which now lives in `legacy/`. Built the same way as
 StorySearch: [gpui](https://crates.io/crates/gpui) 0.2 for the window, clap for
 the CLI, a `bundle.sh` that makes an ad-hoc signed `.app`, and a `Makefile` of
 the usual commands.
@@ -54,7 +54,7 @@ EEPROM; SLEEP; GPIO with TRISIO, weak pull-ups, and ANSEL/CMCON analog pins
 reading 0; the data EEPROM with its 0x55/0xAA unlock; the A/D converter.
 
 Not simulated: the comparator output and voltage reference, the external TMR1
-oscillator, and the old app's PICkit USB read (`USB Pickit Interface.m`), which
+oscillator, and the old app's PICkit USB read (`legacy/USB Pickit Interface.m`), which
 needs the hardware to port and test.
 
 ## Layout
@@ -69,7 +69,7 @@ needs the hardware to port and test.
 | `src/gui/` | the gpui window (`simulator.rs`), theme, actions, text input |
 
 The old app generated one C function per opcode (16,384 of them, under
-`PIC12F675/`); here the opcode is decoded and executed by one `match`, which also
+`legacy/PIC12F675/`); here the opcode is decoded and executed by one `match`, which also
 fixes several bugs in the generated code (BTFSC tested with `|`, ADDWF/SUBWF with
 some operands did nothing, RRF/RLF had their destinations swapped, CALL masked
 the stack with 2 levels instead of 8).
