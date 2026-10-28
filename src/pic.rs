@@ -256,19 +256,48 @@ pub fn sfr_name(addr: u8) -> Option<&'static str> {
 /// banks and the general-purpose RAM (0x20..=0x5F, mirrored at 0xA0..=0xDF)
 /// fold onto their bank-0 address. `None` is an unimplemented location.
 pub fn canonical(addr: u8) -> Option<u8> {
-    match addr {
-        0x00 | 0x80 => Some(INDF),
-        0x02 | 0x82 => Some(PCL),
-        0x03 | 0x83 => Some(STATUS),
-        0x04 | 0x84 => Some(FSR),
-        0x0A | 0x8A => Some(PCLATH),
-        0x0B | 0x8B => Some(INTCON),
-        0x20..=0x5F => Some(addr),
-        0xA0..=0xDF => Some(addr - 0x80),
-        a if SFRS.iter().any(|(s, _)| *s == a) => Some(a),
-        _ => None,
+    match CANONICAL[addr as usize] {
+        UNIMPLEMENTED => None,
+        a => Some(a),
     }
 }
+
+/// [`canonical`] for every address, worked out at compile time: it is looked
+/// up on every register access, so it is one load rather than a search.
+static CANONICAL: [u8; 256] = {
+    let mut table = [UNIMPLEMENTED; 256];
+    let mut addr = 0;
+    while addr < 256 {
+        let a = addr as u8;
+        table[addr] = match a {
+            0x00 | 0x80 => INDF,
+            0x02 | 0x82 => PCL,
+            0x03 | 0x83 => STATUS,
+            0x04 | 0x84 => FSR,
+            0x0A | 0x8A => PCLATH,
+            0x0B | 0x8B => INTCON,
+            0x20..=0x5F => a,
+            0xA0..=0xDF => a - 0x80,
+            _ => {
+                let mut i = 0;
+                let mut found = UNIMPLEMENTED;
+                while i < SFRS.len() {
+                    if SFRS[i].0 == a {
+                        found = a;
+                    }
+                    i += 1;
+                }
+                found
+            }
+        };
+        addr += 1;
+    }
+    table
+};
+
+/// The [`CANONICAL`] entry for an address with no register. No real register
+/// lives at 0xFF: that is bank 1's top GPR mirror, which is unimplemented.
+const UNIMPLEMENTED: u8 = 0xFF;
 
 /// Why a run stopped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -331,6 +360,11 @@ pub struct Pic {
     /// Cycles left during which a TMR0 write holds the timer.
     tmr0_hold: u8,
 
+    /// Each program word as last decoded, with the word it came from. `rom` is
+    /// public and can change under it, so a fetch checks the word still
+    /// matches; that costs a compare, where decoding costs a dozen branches.
+    decoded: Box<[(u16, Op); ROM_WORDS]>,
+
     pub cycles: u64,
 }
 
@@ -374,6 +408,9 @@ impl Pic {
             int_level: false,
             t0ck_level: false,
             tmr0_hold: 0,
+            // A word no program word is (they are at most 14 bits), so the
+            // first fetch at each address decodes.
+            decoded: Box::new([(u16::MAX, Op::Nop); ROM_WORDS]),
             cycles: 0,
         };
         pic.erase();
@@ -484,17 +521,24 @@ impl Pic {
     }
 
     fn level14(&self, pin: u8) -> bool {
-        let bit = 1 << pin;
-        let tris = self.regs[TRISIO as usize];
+        self.levels14() & (1 << pin) != 0
+    }
+
+    /// [`Pic::level14`] for all six pins at once, GP0 in bit 0: the output
+    /// latch on outputs, else what drives the pin, else its pull-up.
+    #[inline]
+    fn levels14(&self) -> u8 {
         // GP3 is input-only.
-        if tris & bit == 0 && pin != 3 {
-            return self.regs[GPIO as usize] & bit != 0;
-        }
-        if self.pins_driven & bit != 0 {
-            return self.pins_in & bit != 0;
-        }
-        let pullups = self.regs[OPTION_REG as usize] & 0x80 == 0;
-        pullups && self.regs[WPU as usize] & bit != 0
+        let inputs = self.regs[TRISIO as usize] | 0x08;
+        let pullups = if self.regs[OPTION_REG as usize] & 0x80 == 0 {
+            self.regs[WPU as usize]
+        } else {
+            0
+        };
+        let driven = self.pins_driven & inputs;
+        let floating = !self.pins_driven & inputs;
+        ((self.regs[GPIO as usize] & !inputs) | (self.pins_in & driven) | (pullups & floating))
+            & 0x3F
     }
 
     /// Which pins are configured as analog inputs and so read as 0.
@@ -505,14 +549,11 @@ impl Pic {
         }
     }
 
+    #[inline]
     fn analog14(&self) -> u8 {
+        // AN0..AN2 are GP0..GP2; AN3 is GP4.
         let ansel = self.regs[ANSEL as usize];
-        let mut mask = 0;
-        for (an, gp) in [(0, 0), (1, 1), (2, 2), (3, 4)] {
-            if ansel & (1 << an) != 0 {
-                mask |= 1 << gp;
-            }
-        }
+        let mut mask = (ansel & 0x07) | ((ansel & 0x08) << 1);
         // The comparator holds CIN+/CIN- (GP0/GP1) analog unless it is off.
         if self.regs[CMCON as usize] & 0x07 != 0x07 {
             mask |= 0b11;
@@ -521,21 +562,17 @@ impl Pic {
     }
 
     /// GPIO as a read sees it.
+    #[inline]
     fn gpio_pins(&self) -> u8 {
-        let mut v = 0;
-        for pin in 0..6 {
-            if self.level14(pin) {
-                v |= 1 << pin;
-            }
-        }
-        v & !self.analog14() & 0x3F
+        self.levels14() & !self.analog14()
     }
 
-    /// Read a register by bank-qualified address, with the side effects a
-    /// read has (GPIO latches the interrupt-on-change compare).
-    fn read14(&mut self, addr: u8) -> u8 {
-        let v = self.peek14(addr);
-        if canonical(addr) == Some(GPIO) {
+    /// Read a register by canonical address (or [`UNIMPLEMENTED`]), with the
+    /// side effects a read has (GPIO latches the interrupt-on-change compare).
+    #[inline(always)]
+    fn read_reg(&mut self, a: u8) -> u8 {
+        let v = self.peek_reg(a);
+        if a == GPIO {
             self.gpio_latched = v;
         }
         v
@@ -551,33 +588,55 @@ impl Pic {
     }
 
     fn peek14(&self, addr: u8) -> u8 {
-        let Some(a) = canonical(addr) else { return 0 };
-        match a {
-            INDF => {
-                let fsr = self.regs[FSR as usize];
-                if canonical(fsr) == Some(INDF) {
-                    0
-                } else {
-                    self.peek14(fsr)
-                }
+        self.peek_reg(CANONICAL[addr as usize])
+    }
+
+    /// [`Pic::peek14`] by canonical address, or [`UNIMPLEMENTED`]. INDF goes
+    /// through FSR, which can name any register but INDF itself.
+    #[inline(always)]
+    fn peek_reg(&self, a: u8) -> u8 {
+        if a == INDF {
+            match CANONICAL[self.regs[FSR as usize] as usize] {
+                INDF => 0,
+                r => self.peek_direct(r),
             }
+        } else {
+            self.peek_direct(a)
+        }
+    }
+
+    #[inline(always)]
+    fn peek_direct(&self, a: u8) -> u8 {
+        match a {
             PCL => self.pc as u8,
             GPIO => self.gpio_pins(),
-            EECON2 => 0,
+            EECON2 | UNIMPLEMENTED => 0,
             _ => self.regs[a as usize],
         }
     }
 
     /// Write a register by bank-qualified address, as an instruction would.
     fn write14(&mut self, addr: u8, v: u8) {
-        let Some(a) = canonical(addr) else { return };
-        match a {
-            INDF => {
-                let fsr = self.regs[FSR as usize];
-                if canonical(fsr) != Some(INDF) {
-                    self.write14(fsr, v);
-                }
+        self.write_reg(CANONICAL[addr as usize], v)
+    }
+
+    /// [`Pic::write14`] by canonical address, or [`UNIMPLEMENTED`].
+    #[inline(always)]
+    fn write_reg(&mut self, a: u8, v: u8) {
+        if a == INDF {
+            match CANONICAL[self.regs[FSR as usize] as usize] {
+                INDF => {}
+                r => self.write_direct(r, v),
             }
+        } else {
+            self.write_direct(a, v)
+        }
+    }
+
+    #[inline(always)]
+    fn write_direct(&mut self, a: u8, v: u8) {
+        match a {
+            UNIMPLEMENTED | INDF => {}
             PCL => {
                 self.pc = ((self.regs[PCLATH as usize] as u16 & 0x1F) << 8) | v as u16;
             }
@@ -694,6 +753,7 @@ impl Pic {
         }
     }
 
+    #[inline(always)]
     fn step14(&mut self) -> u32 {
         if self.interrupt_pending() {
             if self.sleeping {
@@ -713,35 +773,59 @@ impl Pic {
             return self.tick(1);
         }
 
-        let word = self.rom[self.pc as usize % ROM_WORDS];
+        let op = self.fetch::<ROM_WORDS>(decode);
         self.pc = (self.pc + 1) & 0x1FFF;
-        let cycles = self.exec::<false>(decode(word));
+        let cycles = self.exec::<false>(op);
         self.tick(cycles)
+    }
+
+    /// The instruction at the PC, decoded with `decode` unless the word is the
+    /// one decoded there last time.
+    #[inline(always)]
+    fn fetch<const WORDS: usize>(&mut self, decode: fn(u16) -> Op) -> Op {
+        let at = self.pc as usize % WORDS;
+        let word = self.rom[at];
+        let cached = &mut self.decoded[at];
+        if cached.0 != word {
+            *cached = (word, decode(word));
+        }
+        cached.1
     }
 
     /// Run until `budget` cycles have gone, a breakpoint is reached, or `stop`
     /// says so. A breakpoint at the PC on entry does not stop it: that is the
     /// one we are resuming from.
-    pub fn run(&mut self, budget: u64, stop: &dyn Fn() -> bool) -> Stop {
+    pub fn run(&mut self, budget: u64, stop: impl Fn() -> bool) -> Stop {
         // The part is chosen once here, so each core's loop is its own code.
         match self.part.core() {
-            Core::Midrange => self.run_with::<ROM_WORDS>(budget, stop, Self::step14),
-            Core::Baseline => self.run_with::<{ baseline::ROM_WORDS }>(budget, stop, Self::step12),
+            Core::Midrange => self.run_with::<ROM_WORDS>(budget, stop, Self::step14, Self::doze14),
+            Core::Baseline => {
+                self.run_with::<{ baseline::ROM_WORDS }>(budget, stop, Self::step12, Self::doze12)
+            }
         }
     }
 
+    /// The run loop, given the core's `step` and `doze`.
     #[inline(always)]
     fn run_with<const WORDS: usize>(
         &mut self,
         budget: u64,
-        stop: &dyn Fn() -> bool,
+        stop: impl Fn() -> bool,
         step: impl Fn(&mut Self) -> u32,
+        doze: impl Fn(&mut Self, u64) -> bool,
     ) -> Stop {
         let end = self.cycles + budget;
         let mut steps = 0u32;
         while self.cycles < end {
-            if steps > 0 && self.breakpoints[self.pc as usize % WORDS] {
-                return Stop::Breakpoint(self.pc);
+            if steps > 0 {
+                if self.breakpoints[self.pc as usize % WORDS] {
+                    return Stop::Breakpoint(self.pc);
+                }
+                // A step has run since the pins last changed from outside,
+                // so asleep the part can skip ahead to whatever wakes it.
+                if self.sleeping && doze(self, end - self.cycles) {
+                    continue;
+                }
             }
             steps = steps.wrapping_add(1);
             step(self);
@@ -755,10 +839,36 @@ impl Pic {
         Stop::Budget
     }
 
+    /// Asleep, pass up to `room` cycles at once, stopping short of anything
+    /// that could wake the part: the watchdog timing out, or the A/D finishing
+    /// (its flag can be an interrupt). Taken one by one those cycles would
+    /// each find no interrupt and tick once; a pin change or interrupt flag
+    /// that wakes it was already seen by the step before. Returns whether it
+    /// passed any.
+    fn doze14(&mut self, room: u64) -> bool {
+        if self.interrupt_pending() {
+            return false;
+        }
+        let mut cycles = room.min(u32::MAX as u64);
+        if self.adc_busy > 0 {
+            cycles = cycles.min(self.adc_busy as u64);
+        }
+        if self.config.0 & 0x08 != 0 {
+            cycles = cycles.min(self.wdt_limit().saturating_sub(self.wdt + 1));
+        }
+        if cycles == 0 {
+            return false;
+        }
+        self.tick(cycles as u32);
+        true
+    }
+
+    #[inline(always)]
     fn interrupt_pending(&self) -> bool {
         let intcon = self.regs[INTCON as usize];
-        let on = |bit: u8| intcon & (1 << bit) != 0;
-        let core = (on(T0IE) && on(T0IF)) || (on(INTE) && on(INTF)) || (on(GPIE) && on(GPIF));
+        // Each core source's enable sits three bits above its flag.
+        const _: () = assert!(T0IE == T0IF + 3 && INTE == INTF + 3 && GPIE == GPIF + 3);
+        let core = intcon & (intcon >> 3) & 0x07 != 0;
         let peripheral =
             intcon & (1 << PEIE) != 0 && self.regs[PIR1 as usize] & self.regs[PIE1 as usize] != 0;
         core || peripheral
@@ -958,16 +1068,25 @@ impl Pic {
         }
     }
 
-    /// The address an instruction's file operand names: bank-qualified on
-    /// the midrange, the 5-bit operand itself on the baseline.
+    /// The register an instruction's file operand names: on the midrange its
+    /// canonical address (or [`UNIMPLEMENTED`]), on the baseline the 5-bit
+    /// operand itself.
     #[inline(always)]
     fn file<const BASE: bool>(&self, f: u8) -> u8 {
-        if BASE { f & 0x1F } else { self.direct(f) }
+        if BASE {
+            f & 0x1F
+        } else {
+            CANONICAL[self.direct(f) as usize]
+        }
     }
 
     #[inline(always)]
     fn rd<const BASE: bool>(&mut self, a: u8) -> u8 {
-        if BASE { self.read12(a) } else { self.read14(a) }
+        if BASE {
+            self.read12(a)
+        } else {
+            self.read_reg(a)
+        }
     }
 
     #[inline(always)]
@@ -975,16 +1094,7 @@ impl Pic {
         if BASE {
             self.write12(a, v)
         } else {
-            self.write14(a, v)
-        }
-    }
-
-    #[inline(always)]
-    fn is<const BASE: bool>(a: u8, reg: u8) -> bool {
-        if BASE {
-            a == reg
-        } else {
-            canonical(a) == Some(reg)
+            self.write_reg(a, v)
         }
     }
 
@@ -1000,7 +1110,7 @@ impl Pic {
         let x = self.rd::<BASE>(a);
         let r = op(self, x);
         if d {
-            if Self::is::<BASE>(a, STATUS) {
+            if a == STATUS {
                 // The flags the instruction set win over the written value.
                 let flags = self.status() & 0x07;
                 self.wr::<BASE>(a, r);
@@ -1024,7 +1134,7 @@ impl Pic {
     /// A write to PCL is a jump and costs the second cycle.
     #[inline(always)]
     fn pcl_cycles<const BASE: bool>(&self, a: u8) -> u32 {
-        if Self::is::<BASE>(a, PCL) { 2 } else { 1 }
+        if a == PCL { 2 } else { 1 }
     }
 
     fn skip<const BASE: bool>(&mut self, take: bool) -> u32 {
@@ -1056,7 +1166,41 @@ impl Pic {
     }
 
     /// Advance the clocked peripherals by `n` instruction cycles.
+    ///
+    /// Within one instruction's cycles the peripherals do not affect each
+    /// other, unless the watchdog fires and resets the part between them, and
+    /// nothing moves a pin, so only the first cycle can see one change. So
+    /// when the watchdog cannot fire, each is advanced over all `n` cycles at
+    /// once, its enable bits read once rather than per cycle; otherwise they
+    /// go cycle by cycle, in order.
+    #[inline(always)]
     fn tick(&mut self, n: u32) -> u32 {
+        if self.config.0 & 0x08 != 0 && self.wdt + n as u64 >= self.wdt_limit() {
+            return self.tick_cycles(n);
+        }
+        self.cycles += n as u64;
+        if self.config.0 & 0x08 != 0 {
+            self.wdt += n as u64;
+        }
+        if !self.sleeping {
+            self.advance_tmr0::<true>(n, Self::tick_tmr0);
+            self.advance_tmr1(n);
+        }
+        if self.adc_busy > 0 {
+            if self.adc_busy <= n {
+                self.adc_busy = 0;
+                self.finish_adc();
+            } else {
+                self.adc_busy -= n;
+            }
+        }
+        self.watch_pins();
+        n
+    }
+
+    /// [`Pic::tick`] one cycle at a time.
+    #[cold]
+    fn tick_cycles(&mut self, n: u32) -> u32 {
         for _ in 0..n {
             self.cycles += 1;
             self.tick_tmr0();
@@ -1071,6 +1215,51 @@ impl Pic {
             self.watch_pins();
         }
         n
+    }
+
+    /// TMR0 over `n` cycles while awake, setting T0IF when it wraps if
+    /// `FLAG` (the 12C508 has no flag). `per_cycle` is the core's one-cycle
+    /// rule, for what the bulk count does not cover.
+    #[inline(always)]
+    pub(super) fn advance_tmr0<const FLAG: bool>(&mut self, n: u32, per_cycle: fn(&mut Self)) {
+        let option = self.regs[OPTION_REG as usize];
+        let shift = (option & 0x07) + 1;
+        let rate = 1u16 << shift;
+        // Counting T0CKI edges, or a prescaler already past a rate just
+        // lowered: the per-cycle rules handle those.
+        if option & 0x20 != 0 || (option & 0x08 == 0 && self.prescaler >= rate) {
+            for _ in 0..n {
+                per_cycle(self);
+            }
+            return;
+        }
+        let held = (self.tmr0_hold as u32).min(n);
+        self.tmr0_hold -= held as u8;
+        let mut counts = n - held;
+        if option & 0x08 == 0 {
+            let total = self.prescaler as u32 + counts;
+            counts = total >> shift;
+            self.prescaler = (total & (rate as u32 - 1)) as u16;
+        }
+        if counts > 0 {
+            let t = self.regs[TMR0 as usize] as u32 + counts;
+            self.regs[TMR0 as usize] = t as u8;
+            if FLAG && t > 0xFF {
+                self.regs[INTCON as usize] |= 1 << T0IF;
+            }
+        }
+    }
+
+    /// TMR1 over `n` cycles while awake.
+    #[inline(always)]
+    fn advance_tmr1(&mut self, n: u32) {
+        let t1con = self.regs[T1CON as usize];
+        if t1con & 0x01 == 0 || t1con & 0x02 != 0 {
+            return;
+        }
+        for _ in 0..n {
+            self.tick_tmr1();
+        }
     }
 
     fn tick_tmr0(&mut self) {
@@ -1139,18 +1328,24 @@ impl Pic {
         }
     }
 
-    fn tick_wdt(&mut self) {
-        if self.config.0 & 0x08 == 0 {
-            return;
-        }
-        self.wdt += 1;
+    /// The watchdog count at which it times out, with the postscaler.
+    #[inline(always)]
+    pub(super) fn wdt_limit(&self) -> u64 {
         let option = self.regs[OPTION_REG as usize];
         let post = if option & 0x08 != 0 {
             1u64 << (option & 0x07)
         } else {
             1
         };
-        if self.wdt < WDT_PERIOD * post {
+        WDT_PERIOD * post
+    }
+
+    fn tick_wdt(&mut self) {
+        if self.config.0 & 0x08 == 0 {
+            return;
+        }
+        self.wdt += 1;
+        if self.wdt < self.wdt_limit() {
             return;
         }
         self.wdt = 0;
@@ -1185,8 +1380,10 @@ impl Pic {
 
     /// The pin-driven interrupt flags: the INT edge on GP2 and
     /// interrupt-on-change.
+    #[inline(always)]
     fn watch_pins(&mut self) {
-        let level = self.level14(2);
+        let levels = self.levels14();
+        let level = levels & 0x04 != 0;
         if level != self.int_level {
             let rising = self.regs[OPTION_REG as usize] & 0x40 != 0;
             if level == rising {
@@ -1195,7 +1392,7 @@ impl Pic {
             self.int_level = level;
         }
         let ioc = self.regs[IOC as usize];
-        if ioc != 0 && (self.gpio_pins() ^ self.gpio_latched) & ioc != 0 {
+        if ioc != 0 && ((levels & !self.analog14()) ^ self.gpio_latched) & ioc != 0 {
             self.regs[INTCON as usize] |= 1 << GPIF;
         }
     }
@@ -1345,7 +1542,7 @@ mod tests {
             "movwf INTCON",
             "goto 11",
         ]);
-        pic.run(400, &|| false);
+        pic.run(400, || false);
         assert_eq!(pic.pc, 4);
         assert!(pic.peek(INTCON) & (1 << T0IF) != 0);
         assert!(pic.peek(INTCON) & (1 << GIE) == 0);
@@ -1355,9 +1552,9 @@ mod tests {
     fn breakpoints_stop_a_run() {
         let mut pic = load(&["nop", "nop", "goto 0"]);
         pic.breakpoints[2] = true;
-        assert_eq!(pic.run(1000, &|| false), Stop::Breakpoint(2));
+        assert_eq!(pic.run(1000, || false), Stop::Breakpoint(2));
         // Resuming from it does not stop at once.
-        assert_eq!(pic.run(1000, &|| false), Stop::Breakpoint(2));
+        assert_eq!(pic.run(1000, || false), Stop::Breakpoint(2));
         assert!(pic.cycles > 4);
     }
 
@@ -1396,5 +1593,103 @@ mod tests {
             pic.step();
         }
         assert_eq!(pic.eeprom[4], 0x5A);
+    }
+
+    /// What `run` did before it batched cycles: one `step` at a time.
+    fn run_by_steps(pic: &mut Pic, budget: u64) -> Stop {
+        let words = pic.rom.len();
+        let end = pic.cycles + budget;
+        let mut steps = 0;
+        while pic.cycles < end {
+            if steps > 0 && pic.breakpoints[pic.pc as usize % words] {
+                return Stop::Breakpoint(pic.pc);
+            }
+            steps += 1;
+            pic.step();
+        }
+        if pic.breakpoints[pic.pc as usize % words] {
+            return Stop::Breakpoint(pic.pc);
+        }
+        Stop::Budget
+    }
+
+    fn state(pic: &Pic) -> (u16, u8, u64, bool, Vec<u16>, Vec<u8>, u32) {
+        let regs = (0..=255).map(|a| pic.peek(a)).collect();
+        let wdt = pic.wdt_fraction().to_bits();
+        (
+            pic.pc,
+            pic.w,
+            pic.cycles,
+            pic.sleeping,
+            pic.stack_view(),
+            regs,
+            wdt,
+        )
+    }
+
+    /// `run`, with its batched timers and sleep, lands exactly where stepping
+    /// does, in chunks of odd sizes and with pins changing between them.
+    fn assert_run_matches_stepping(src: &str) {
+        let mut fast = Pic::new();
+        crate::project::assemble_source(src, &mut fast).unwrap();
+        let mut slow = fast.clone();
+        for chunk in 0..400u64 {
+            let budget = 1 + chunk * 7919 % 5000;
+            assert_eq!(fast.run(budget, || false), run_by_steps(&mut slow, budget));
+            assert_eq!(state(&fast), state(&slow), "after chunk {chunk}");
+            if chunk % 37 == 0 {
+                let (pin, high) = ((chunk % 6) as u8, chunk % 2 == 0);
+                fast.drive(pin, high);
+                slow.drive(pin, high);
+            }
+        }
+    }
+
+    #[test]
+    fn run_matches_stepping_for_the_examples() {
+        for file in [
+            "blink.asm",
+            "counter.asm",
+            "blink-12c508.asm",
+            "counter-12c508.asm",
+        ] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
+            assert_run_matches_stepping(&std::fs::read_to_string(path.join(file)).unwrap());
+        }
+    }
+
+    #[test]
+    fn run_matches_stepping_asleep_until_the_adc_or_watchdog() {
+        // Sleep through an A/D conversion, woken by its interrupt flag.
+        assert_run_matches_stepping(
+            " __config 0x3F94
+ bsf STATUS,RP0
+ bsf PIE1,6
+ bcf STATUS,RP0
+ bsf INTCON,6
+again movlw 0x03
+ movwf ADCON0
+ sleep
+ bcf PIR1,6
+ incf 0x20,f
+ goto again",
+        );
+        // Sleep until the watchdog wakes it, with the postscaler on it.
+        assert_run_matches_stepping(
+            " __config 0x3F9C
+ bsf STATUS,RP0
+ movlw 0x09
+ movwf OPTION_REG
+ bcf STATUS,RP0
+again sleep
+ incf 0x20,f
+ goto again",
+        );
+        // On the 12C508 the watchdog wakes it with a reset.
+        assert_run_matches_stepping(
+            " processor 12C508
+ __config 0xFEE
+ sleep",
+        );
     }
 }

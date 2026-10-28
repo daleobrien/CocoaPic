@@ -345,7 +345,7 @@ impl Simulator {
                 let reason = loop {
                     let (reason, cycles) = {
                         let mut pic = pic.lock().unwrap_or_else(|e| e.into_inner());
-                        let r = pic.run(chunk, &|| stop.load(Ordering::Relaxed));
+                        let r = pic.run(chunk, || stop.load(Ordering::Relaxed));
                         (r, pic.cycles)
                     };
                     if reason != Stop::Budget {

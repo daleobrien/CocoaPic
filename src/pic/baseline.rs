@@ -16,7 +16,7 @@
 //! GP0, GP1 and GP3; OSCCAL. Not modelled: GP3 as /MCLR, GP4/GP5 as an
 //! external oscillator's pins, and the device reset timer's delay on wake.
 
-use super::{FSR, INDF, OPTION_REG, PCL, Pic, STATUS, TMR0, TRISIO, WDT_PERIOD};
+use super::{FSR, INDF, OPTION_REG, PCL, Pic, STATUS, TMR0, TRISIO};
 
 pub const ROM_WORDS: usize = 512;
 /// The erased state of a program word: `XORLW 0xFF`.
@@ -186,20 +186,22 @@ impl Pic {
     }
 
     pub(super) fn level12(&self, pin: u8) -> bool {
-        let bit = 1 << pin;
-        if self.inputs12() & bit == 0 {
-            return self.regs[GPIO as usize] & bit != 0;
-        }
-        if self.pins_driven & bit != 0 {
-            return self.pins_in & bit != 0;
-        }
-        self.regs[OPTION] & NOT_GPPU == 0 && WAKE_PINS & bit != 0
+        self.gpio12() & (1 << pin) != 0
     }
 
+    /// Every pin's level, GP0 in bit 0: the output latch on outputs, else
+    /// what drives the pin, else its pull-up.
     fn gpio12(&self) -> u8 {
-        (0..6)
-            .filter(|&pin| self.level12(pin))
-            .fold(0, |v, pin| v | 1 << pin)
+        let inputs = self.inputs12();
+        let pullups = if self.regs[OPTION] & NOT_GPPU == 0 {
+            WAKE_PINS
+        } else {
+            0
+        };
+        let driven = self.pins_driven & inputs;
+        let floating = !self.pins_driven & inputs;
+        ((self.regs[GPIO as usize] & !inputs) | (self.pins_in & driven) | (pullups & floating))
+            & 0x3F
     }
 
     // ---- stack ---------------------------------------------------------
@@ -221,17 +223,57 @@ impl Pic {
 
     // ---- execution -----------------------------------------------------
 
+    #[inline(always)]
     pub(super) fn step12(&mut self) -> u32 {
         if self.sleeping {
             return self.tick12(1);
         }
-        let word = self.rom[self.pc as usize % ROM_WORDS];
+        let op = self.fetch::<ROM_WORDS>(crate::isa::decode12);
         self.pc = (self.pc + 1) & PC_MASK;
-        let cycles = self.exec::<true>(crate::isa::decode12(word));
+        let cycles = self.exec::<true>(op);
         self.tick12(cycles)
     }
 
+    /// [`Pic::doze14`] for the 12C508: asleep, pass up to `room` cycles at
+    /// once, short of a watchdog timeout. A pin change that wakes it would
+    /// have done so on the step before.
+    pub(super) fn doze12(&mut self, room: u64) -> bool {
+        let mut cycles = room.min(u32::MAX as u64);
+        if self.wdt_enabled() {
+            cycles = cycles.min(self.wdt_limit().saturating_sub(self.wdt + 1));
+        }
+        if cycles == 0 {
+            return false;
+        }
+        self.tick12(cycles as u32);
+        true
+    }
+
+    /// Advance TMR0 and the watchdog by `n` cycles: at once when the watchdog
+    /// cannot fire in them, as on the 12F675 (see [`Pic::tick`]).
+    #[inline(always)]
     fn tick12(&mut self, n: u32) -> u32 {
+        let wdt = self.wdt_enabled();
+        if wdt && self.wdt + n as u64 >= self.wdt_limit() {
+            return self.tick12_cycles(n);
+        }
+        self.cycles += n as u64;
+        if wdt {
+            self.wdt += n as u64;
+        }
+        if !self.sleeping {
+            self.advance_tmr0::<false>(n, Self::tick_tmr0_12);
+        } else if self.regs[OPTION] & NOT_GPWU == 0
+            && (self.gpio12() ^ self.gpio_latched) & WAKE_PINS != 0
+        {
+            self.reset12(Cause::PinWake);
+        }
+        n
+    }
+
+    /// [`Pic::tick12`] one cycle at a time.
+    #[cold]
+    fn tick12_cycles(&mut self, n: u32) -> u32 {
         for _ in 0..n {
             self.cycles += 1;
             self.tick_tmr0_12();
@@ -290,13 +332,7 @@ impl Pic {
             return;
         }
         self.wdt += 1;
-        let option = self.regs[OPTION];
-        let post = if option & 0x08 != 0 {
-            1u64 << (option & 0x07)
-        } else {
-            1
-        };
-        if self.wdt < WDT_PERIOD * post {
+        if self.wdt < self.wdt_limit() {
             return;
         }
         let cause = if self.sleeping {
@@ -312,7 +348,7 @@ impl Pic {
 mod tests {
     use super::*;
     use crate::isa::{Names, assemble};
-    use crate::pic::{C, DC, PD, Part, Stop, TO, Z};
+    use crate::pic::{C, DC, PD, Part, Stop, TO, WDT_PERIOD, Z};
 
     fn load(src: &[&str]) -> Pic {
         let mut pic = Pic::with_part(Part::Pic12C508);
@@ -449,7 +485,7 @@ mod tests {
     fn tmr0_counts_with_no_flag() {
         // Prescaler to the watchdog: TMR0 counts every cycle and wraps.
         let mut pic = load(&["movlw 0xCF", "option", "goto 2"]);
-        pic.run(300, &|| false);
+        pic.run(300, || false);
         assert!(pic.peek(TMR0) < 60);
         assert_eq!(pic.peek(0x0B), 0, "no INTCON to set a flag in");
     }
@@ -464,7 +500,7 @@ mod tests {
             "sleep",       // 4
             "goto 0",      // 5: never runs
         ]);
-        pic.run(50, &|| false);
+        pic.run(50, || false);
         assert!(pic.sleeping);
         assert_eq!(pic.peek(0x10), 1);
         assert!(!pic.flag(PD) && pic.flag(TO));
@@ -488,7 +524,7 @@ mod tests {
             pic.config = crate::pic::Config(0xFEE); // WDT on
             assert!(pic.wdt_enabled());
             pic.breakpoints[RESET_VECTOR as usize] = true;
-            let stop = pic.run(WDT_PERIOD + 10, &|| false);
+            let stop = pic.run(WDT_PERIOD + 10, || false);
             assert_eq!(stop, Stop::Breakpoint(RESET_VECTOR));
             assert!(!pic.flag(TO), "/TO clear after a timeout");
             assert_eq!(pic.flag(PD), !asleep, "/PD clear only if it slept");
@@ -500,6 +536,6 @@ mod tests {
     fn breakpoints_stop_a_run() {
         let mut pic = load(&["nop", "nop", "goto 0"]);
         pic.breakpoints[2] = true;
-        assert_eq!(pic.run(1000, &|| false), Stop::Breakpoint(2));
+        assert_eq!(pic.run(1000, || false), Stop::Breakpoint(2));
     }
 }

@@ -271,7 +271,7 @@ mod tests {
         assert!(!pic.wdt_enabled());
         pic.reset();
         // 256 × 256 cycles per overflow; three overflows toggle GP0 three times.
-        pic.run(3 * 65536 + 200, &|| false);
+        pic.run(3 * 65536 + 200, || false);
         assert_eq!(pic.peek(0x20), 3);
         assert!(pic.pin_level(0));
     }
@@ -291,7 +291,7 @@ mod tests {
         );
         pic.reset();
         // TMR0 wraps every 256 × 256 cycles, as on the 12F675's demo.
-        pic.run(3 * 65536 + 200, &|| false);
+        pic.run(3 * 65536 + 200, || false);
         assert_eq!(pic.peek(0x07), 3);
         assert!(pic.is_output(0));
         assert!(pic.pin_level(0));
@@ -303,14 +303,14 @@ mod tests {
         let mut pic = Pic::new();
         assemble_source(src, &mut pic).unwrap();
         pic.reset();
-        pic.run(100, &|| false);
+        pic.run(100, || false);
         assert!(pic.sleeping);
         assert_eq!(pic.peek(0x07), 0);
         for presses in 1..=3u8 {
             // Press (GP3 low) and release; each edge wakes it, the fall counts.
             for level in [false, true] {
                 pic.drive(3, level);
-                pic.run(100, &|| false);
+                pic.run(100, || false);
                 assert!(pic.sleeping);
             }
             assert_eq!(pic.peek(0x07), presses);

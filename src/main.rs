@@ -63,7 +63,7 @@ fn main() -> Result<()> {
             let mut pic = Pic::with_part(part);
             let ann = project::open(&file, &mut pic)?;
             let started = std::time::Instant::now();
-            let stop = pic.run(cycles, &|| false);
+            let stop = pic.run(cycles, || false);
             let secs = started.elapsed().as_secs_f64();
             println!("stopped: {stop:?} after {} cycles", pic.cycles);
             println!(
@@ -152,7 +152,7 @@ mod rt_bench {
                 loop {
                     let (reason, cycles) = {
                         let mut pic = pic.lock().unwrap();
-                        let r = pic.run(1_000, &|| stop.load(Ordering::Relaxed));
+                        let r = pic.run(1_000, || stop.load(Ordering::Relaxed));
                         (r, pic.cycles)
                     };
                     if reason != Stop::Budget || stop.load(Ordering::Relaxed) {

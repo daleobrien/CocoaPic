@@ -14,7 +14,9 @@ const CYCLES: u64 = 1_000_000;
 
 /// The programs: the window's blink demo (a tight wait on T0IF), the counter
 /// (asleep, waiting on a pin), and a busy loop of mixed instructions; then the
-/// PIC12C508's blink (a tight wait on TMR0) and counter.
+/// PIC12C508's blink (a tight wait on TMR0) and counter. Nothing wakes the
+/// counters, and `run` passes sleep in one go up to whatever could wake the
+/// part, so theirs is the cost of a `run` call rather than of instructions.
 const PROGRAMS: &[(&str, &str)] = &[
     ("blink", "examples/blink.asm"),
     ("counter", "examples/counter.asm"),
@@ -39,7 +41,7 @@ fn full_speed(c: &mut Criterion) {
             b.iter_batched_ref(
                 || pic.clone(),
                 |pic| {
-                    let stop = pic.run(CYCLES, &|| false);
+                    let stop = pic.run(CYCLES, || false);
                     assert_eq!(stop, Stop::Budget);
                 },
                 BatchSize::SmallInput,
