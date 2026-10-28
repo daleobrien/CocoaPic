@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{
-    Action, App, AppContext as _, Application, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
+    Action, App, AppContext as _, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
     WindowBounds, WindowOptions, point, px, size,
 };
 
@@ -21,7 +21,7 @@ use self::widgets::text_input as ti;
 
 /// Open the window and run until it closes.
 pub fn run(file: Option<PathBuf>) -> Result<()> {
-    Application::new().run(move |cx| {
+    gpui_platform::application().run(move |cx| {
         theme::set(cx.window_appearance());
 
         cx.on_window_closed(|cx| {

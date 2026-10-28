@@ -10,13 +10,17 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# The native frontend, as in StorySearch. gpui is pre-1.0 and moves, so the
-# version is pinned.
-gpui = "0.2"
+# The native frontend, as in StorySearch. gpui is pre-1.0 and moves, so it is
+# pinned to a zed commit. The crates.io release (0.2.2) still depends on
+# cocoa/objc/block and stacksafe 0.1, which trip rustc's future-incompat
+# warnings (block, proc-macro-error2); zed's main has moved to objc2/block2.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f" }
+# The platform backends now live outside gpui; this picks the macOS one.
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f" }
 # Grapheme boundaries for the hand-rolled text input's cursor movement.
 unicode-segmentation = "1"
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 # gpui gates its `TestAppContext` harness behind `test-support`; the tests use
 # it to draw the real window without a display.
-gpui = { version = "0.2", features = ["test-support"] }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "37faef81f74fc1bb08be9939c4cffc8ede6ced2f", features = ["test-support"] }
