@@ -35,8 +35,5 @@ cocoapic asm examples/counter.asm
 Pick one with the toolbar switch, `--part 12c508`, or `processor 12c508` in
 the source.
 
-## legacy/
-
-`legacy/` holds the original 2002–2003 Objective-C CocoaPic, kept for
-reference. The Rust app at the repo root replaces it; the old PICkit USB
-reader is the one piece not ported yet.
+CocoaPic began in 2002 as an Objective-C app; this is a Rust rewrite of it.
+The PICkit USB reader from the original has not been ported.
